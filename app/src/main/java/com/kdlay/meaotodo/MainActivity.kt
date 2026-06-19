@@ -6,8 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.ViewModelProvider
 import com.kdlay.meaotodo.core.AppContainer
 import com.kdlay.meaotodo.ui.MeaoTodoApp
-import com.kdlay.meaotodo.ui.todo.TodoViewModel
 import com.kdlay.meaotodo.ui.theme.MeaoTodoTheme
+import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -15,7 +15,7 @@ class MainActivity : ComponentActivity() {
         val appContainer = AppContainer(applicationContext)
         val todoViewModel = ViewModelProvider(
             this,
-            TodoViewModel.factory(appContainer.taskRepository)
+            TodoViewModel.factory(appContainer.todoRepository)
         )[TodoViewModel::class.java]
 
         setContent {
