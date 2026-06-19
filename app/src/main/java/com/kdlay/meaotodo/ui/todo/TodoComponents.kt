@@ -318,10 +318,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.taskSection(
     onRemove: (TaskEntity) -> Unit
 ) {
     if (tasks.isEmpty()) return
+    val sectionKey = "section-$title"
     item(key = "section-$title") {
         SectionHeader(title = title, count = tasks.size)
     }
-    items(tasks, key = { it.id }) { task ->
+    items(tasks, key = { task -> "$sectionKey-${task.id}" }) { task ->
         TaskRow(
             task = task,
             onCheckedChange = { isDone -> onCheckedChange(task, isDone) },
