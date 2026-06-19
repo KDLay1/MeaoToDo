@@ -63,6 +63,7 @@ class TodoViewModel(
         note: String,
         priority: Int,
         dueAt: Long?,
+        hasDueTime: Boolean,
         estimatedPomodoros: Int
     ) {
         if (title.isBlank()) return
@@ -73,6 +74,7 @@ class TodoViewModel(
                 note = note,
                 priority = priority,
                 dueAt = dueAt,
+                hasDueTime = hasDueTime,
                 estimatedPomodoros = estimatedPomodoros
             )
         }
@@ -85,11 +87,12 @@ class TodoViewModel(
         note: String,
         priority: Int,
         dueAt: Long?,
+        hasDueTime: Boolean,
         estimatedPomodoros: Int
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            if (!taskRepository.updateTask(task.id, listId, title, note, priority, dueAt, estimatedPomodoros)) {
+            if (!taskRepository.updateTask(task.id, listId, title, note, priority, dueAt, hasDueTime, estimatedPomodoros)) {
                 _messages.emit("任务更新失败")
             }
         }
