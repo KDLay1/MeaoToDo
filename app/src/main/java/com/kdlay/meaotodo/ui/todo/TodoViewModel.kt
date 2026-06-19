@@ -41,11 +41,11 @@ class TodoViewModel(
     }
 
     fun addTaskList(name: String) {
-        if (name.isBlank()) return
+        val cleanName = name.trim()
+        if (cleanName.isBlank()) return
         viewModelScope.launch {
-            if (!taskListRepository.createList(name)) {
-                _messages.emit("清单创建失败")
-            }
+            val created = taskListRepository.createList(cleanName)
+            _messages.emit(if (created) "清单已创建" else "清单创建失败")
         }
     }
 
