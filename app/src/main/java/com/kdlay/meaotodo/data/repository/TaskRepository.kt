@@ -5,6 +5,9 @@ import com.kdlay.meaotodo.data.local.dao.TaskDao
 import com.kdlay.meaotodo.data.local.entity.SyncOutboxEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import java.util.UUID
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class TaskRepository(
     private val taskDao: TaskDao,
@@ -42,8 +45,8 @@ class TaskRepository(
         priority: Int,
         dueAt: Long?,
         estimatedPomodoros: Int
-    ) {
-        val existing = taskDao.findById(id) ?: return
+    ): Boolean {
+        val existing = taskDao.findById(id) ?: return false
         val now = System.currentTimeMillis()
         val updated = existing.copy(
             title = title.trim(),
@@ -55,20 +58,23 @@ class TaskRepository(
         )
         taskDao.upsert(updated)
         enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
     }
 
-    suspend fun setDone(id: String, isDone: Boolean) {
+    suspend fun setDone(id: String, isDone: Boolean): Boolean {
         val now = System.currentTimeMillis()
         taskDao.setDone(id = id, isDone = isDone, updatedAt = now)
-        val updated = taskDao.findById(id) ?: return
+        val updated = taskDao.findById(id) ?: return false
         enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
     }
 
-    suspend fun softDelete(id: String) {
+    suspend fun softDelete(id: String): Boolean {
         val now = System.currentTimeMillis()
         taskDao.softDelete(id = id, deletedAt = now)
-        val deleted = taskDao.findById(id) ?: return
+        val deleted = taskDao.findById(id) ?: return false
         enqueueChange(task = deleted, operation = "delete", createdAt = now)
+        return true
     }
 
     private suspend fun enqueueChange(task: TaskEntity, operation: String, createdAt: Long) {
@@ -78,56 +84,45 @@ class TaskRepository(
                 entityType = "task",
                 entityId = task.id,
                 operation = operation,
-                payloadJson = task.toPayloadJson(),
+                payloadJson = json.encodeToString(task.toSyncPayload()),
                 createdAt = createdAt
             )
         )
     }
 
-    private fun TaskEntity.toPayloadJson(): String = buildString {
-        append("{")
-        appendJsonField("id", id)
-        append(",")
-        appendJsonField("title", title)
-        append(",")
-        appendJsonField("note", note)
-        append(",\"isDone\":")
-        append(isDone)
-        append(",\"priority\":")
-        append(priority)
-        append(",\"dueAt\":")
-        append(dueAt?.toString() ?: "null")
-        append(",\"estimatedPomodoros\":")
-        append(estimatedPomodoros)
-        append(",\"actualPomodoros\":")
-        append(actualPomodoros)
-        append(",\"createdAt\":")
-        append(createdAt)
-        append(",\"updatedAt\":")
-        append(updatedAt)
-        append(",\"deletedAt\":")
-        append(deletedAt?.toString() ?: "null")
-        append("}")
-    }
+    private fun TaskEntity.toSyncPayload(): TaskSyncPayload = TaskSyncPayload(
+        id = id,
+        title = title,
+        note = note,
+        isDone = isDone,
+        priority = priority,
+        dueAt = dueAt,
+        estimatedPomodoros = estimatedPomodoros,
+        actualPomodoros = actualPomodoros,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
 
-    private fun StringBuilder.appendJsonField(name: String, value: String) {
-        append("\"")
-        append(name)
-        append("\":\"")
-        append(value.escapeJson())
-        append("\"")
-    }
+    @Serializable
+    private data class TaskSyncPayload(
+        val id: String,
+        val title: String,
+        val note: String,
+        val isDone: Boolean,
+        val priority: Int,
+        val dueAt: Long?,
+        val estimatedPomodoros: Int,
+        val actualPomodoros: Int,
+        val createdAt: Long,
+        val updatedAt: Long,
+        val deletedAt: Long?
+    )
 
-    private fun String.escapeJson(): String = buildString {
-        for (char in this@escapeJson) {
-            when (char) {
-                '\\' -> append("\\\\")
-                '"' -> append("\\\"")
-                '\n' -> append("\\n")
-                '\r' -> append("\\r")
-                '\t' -> append("\\t")
-                else -> append(char)
-            }
+    private companion object {
+        val json = Json {
+            encodeDefaults = true
+            explicitNulls = true
         }
     }
 }
