@@ -43,8 +43,9 @@ internal fun TaskEditorDialog(
     listOptions: List<TodoListOption>,
     initialListId: String,
     initialDueAt: Long?,
+    initialHasDueTime: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Int, Long?, Int) -> Unit
+    onSave: (String, String, String, Int, Long?, Boolean, Int) -> Unit
 ) {
     val scrollState = rememberScrollState()
     val isNewTask = task == null
@@ -53,9 +54,20 @@ internal fun TaskEditorDialog(
     var listId by remember(task?.id, initialListId) { mutableStateOf(initialListId) }
     var priority by remember(task?.id) { mutableIntStateOf(task?.priority ?: 0) }
     var dueAt by remember(task?.id, initialDueAt) { mutableStateOf(task?.dueAt ?: initialDueAt) }
+    var hasDueTime by remember(task?.id, initialHasDueTime) { mutableStateOf((task?.hasDueTime ?: initialHasDueTime) && dueAt != null) }
+    var dueHour by remember(task?.id, initialDueAt) { mutableIntStateOf(dueAt?.let(::hourOf) ?: 9) }
+    var dueMinute by remember(task?.id, initialDueAt) { mutableIntStateOf(dueAt?.let(::minuteOf) ?: 0) }
     var estimatedPomodoros by remember(task?.id) { mutableIntStateOf(task?.estimatedPomodoros ?: 0) }
     var showMoreOptions by remember { mutableStateOf(!isNewTask) }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    fun updateDueTime(hour: Int = dueHour, minute: Int = dueMinute, enabled: Boolean = hasDueTime) {
+        val currentDueAt = dueAt ?: return
+        dueHour = hour.coerceIn(0, 23)
+        dueMinute = minute.coerceIn(0, 59)
+        hasDueTime = enabled
+        dueAt = if (enabled) combineDateAndTime(currentDueAt, dueHour, dueMinute) else startOfDay(currentDueAt)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -91,7 +103,7 @@ internal fun TaskEditorDialog(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             SmallBadge(text = selectedListLabel(listOptions, listId))
-                            dueAt?.let { SmallBadge(text = "截止 ${formatDate(it)}") }
+                            dueAt?.let { SmallBadge(text = "截止 ${formatDueAtLabel(it, hasDueTime)}") }
                             if (priority > 0) SmallBadge(text = priorityLabel(priority))
                         }
                         OutlinedTextField(
@@ -117,7 +129,7 @@ internal fun TaskEditorDialog(
                 if (!showMoreOptions) {
                     QuickSettingChips(
                         listLabel = selectedListLabel(listOptions, listId),
-                        dueLabel = dueAt?.let { formatDate(it) } ?: "添加日期",
+                        dueLabel = dueAt?.let { formatDueAtLabel(it, hasDueTime) } ?: "添加日期",
                         priorityLabel = if (priority > 0) priorityLabel(priority) else "普通",
                         onListClick = { showMoreOptions = true },
                         onDateClick = { showDatePicker = true },
@@ -144,9 +156,43 @@ internal fun TaskEditorDialog(
                                 Text(dueAt?.let { "截止 ${formatDate(it)}" } ?: "添加截止日期")
                             }
                             if (dueAt != null) {
-                                TextButton(onClick = { dueAt = null }) {
+                                TextButton(onClick = {
+                                    dueAt = null
+                                    hasDueTime = false
+                                }) {
                                     Text("清除")
                                 }
+                            }
+                        }
+                    }
+
+                    if (dueAt != null) {
+                        OptionSection(title = "截止时间") {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (hasDueTime) {
+                                    FilledTonalButton(onClick = { updateDueTime(enabled = false) }) { Text("无具体时间") }
+                                } else {
+                                    OutlinedButton(onClick = { updateDueTime(enabled = true) }) { Text("设置具体时间") }
+                                }
+                                if (hasDueTime) {
+                                    Text("%02d:%02d".format(dueHour, dueMinute), modifier = Modifier.padding(top = 12.dp))
+                                }
+                            }
+                            if (hasDueTime) {
+                                Text("小时", style = MaterialTheme.typography.labelSmall)
+                                IntChoiceButtonGroup(
+                                    values = (0..23).toList(),
+                                    selectedValue = dueHour,
+                                    label = { "%02d".format(it) },
+                                    onSelect = { updateDueTime(hour = it, enabled = true) }
+                                )
+                                Text("分钟", style = MaterialTheme.typography.labelSmall)
+                                IntChoiceButtonGroup(
+                                    values = listOf(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55),
+                                    selectedValue = dueMinute,
+                                    label = { "%02d".format(it) },
+                                    onSelect = { updateDueTime(minute = it, enabled = true) }
+                                )
                             }
                         }
                     }
@@ -173,7 +219,7 @@ internal fun TaskEditorDialog(
         },
         confirmButton = {
             FilledTonalButton(
-                onClick = { onSave(listId, taskTitle, note, priority, dueAt, estimatedPomodoros) },
+                onClick = { onSave(listId, taskTitle, note, priority, dueAt, hasDueTime && dueAt != null, estimatedPomodoros) },
                 enabled = taskTitle.isNotBlank()
             ) {
                 Text(if (isNewTask) "添加任务" else "保存修改")
@@ -191,7 +237,11 @@ internal fun TaskEditorDialog(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        dueAt = datePickerState.selectedDateMillis
+                        val selected = datePickerState.selectedDateMillis
+                        dueAt = selected?.let {
+                            if (hasDueTime) combineDateAndTime(it, dueHour, dueMinute) else startOfDay(it)
+                        }
+                        if (dueAt == null) hasDueTime = false
                         showDatePicker = false
                     }
                 ) {
@@ -302,3 +352,6 @@ private fun StringChoiceButtonGroup(
 
 private fun selectedListLabel(options: List<TodoListOption>, selectedId: String): String =
     options.firstOrNull { it.id == selectedId }?.label ?: "收集箱"
+
+private fun formatDueAtLabel(timestamp: Long, hasDueTime: Boolean): String =
+    if (hasDueTime) "${formatDate(timestamp)} ${formatTime(timestamp)}" else formatDate(timestamp)
