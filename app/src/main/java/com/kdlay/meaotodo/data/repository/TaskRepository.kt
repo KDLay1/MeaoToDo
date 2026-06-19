@@ -22,6 +22,7 @@ class TaskRepository(
         note: String = "",
         priority: Int = 0,
         dueAt: Long? = null,
+        hasDueTime: Boolean = false,
         estimatedPomodoros: Int = 0
     ) {
         val now = System.currentTimeMillis()
@@ -33,6 +34,7 @@ class TaskRepository(
             note = note.trim(),
             priority = priority.coerceIn(0, 3),
             dueAt = dueAt,
+            hasDueTime = dueAt != null && hasDueTime,
             estimatedPomodoros = estimatedPomodoros.coerceAtLeast(0),
             createdAt = now,
             updatedAt = now
@@ -48,6 +50,7 @@ class TaskRepository(
         note: String,
         priority: Int,
         dueAt: Long?,
+        hasDueTime: Boolean,
         estimatedPomodoros: Int
     ): Boolean {
         val existing = taskDao.findById(id) ?: return false
@@ -58,6 +61,7 @@ class TaskRepository(
             note = note.trim(),
             priority = priority.coerceIn(0, 3),
             dueAt = dueAt,
+            hasDueTime = dueAt != null && hasDueTime,
             estimatedPomodoros = estimatedPomodoros.coerceAtLeast(0),
             updatedAt = now
         )
@@ -103,6 +107,7 @@ class TaskRepository(
         isDone = isDone,
         priority = priority,
         dueAt = dueAt,
+        hasDueTime = hasDueTime,
         estimatedPomodoros = estimatedPomodoros,
         actualPomodoros = actualPomodoros,
         createdAt = createdAt,
@@ -119,6 +124,7 @@ class TaskRepository(
         val isDone: Boolean,
         val priority: Int,
         val dueAt: Long?,
+        val hasDueTime: Boolean,
         val estimatedPomodoros: Int,
         val actualPomodoros: Int,
         val createdAt: Long,

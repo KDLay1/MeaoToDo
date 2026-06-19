@@ -318,10 +318,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.taskSection(
     onRemove: (TaskEntity) -> Unit
 ) {
     if (tasks.isEmpty()) return
+    val sectionKey = "section-$title"
     item(key = "section-$title") {
         SectionHeader(title = title, count = tasks.size)
     }
-    items(tasks, key = { it.id }) { task ->
+    items(tasks, key = { task -> "$sectionKey-${task.id}" }) { task ->
         TaskRow(
             task = task,
             onCheckedChange = { isDone -> onCheckedChange(task, isDone) },
@@ -491,7 +492,7 @@ private fun CompleteButton(
 @Composable
 private fun MetadataRow(task: TaskEntity) {
     val metadata = buildList {
-        task.dueAt?.let { add("截止 ${formatDate(it)}") }
+        task.dueAt?.let { add("截止 ${formatDueAt(task)}") }
         if (task.estimatedPomodoros > 0) add("预计 ${task.estimatedPomodoros} 番茄")
         if (task.actualPomodoros > 0) add("已专注 ${task.actualPomodoros}")
     }
