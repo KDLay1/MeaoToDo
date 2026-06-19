@@ -44,18 +44,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.kdlay.meaotodo.data.local.entity.DEFAULT_TASK_LIST_ID
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
+import com.kdlay.meaotodo.data.local.entity.TaskListEntity
 import java.text.DateFormat
 import java.util.Calendar
 import java.util.Date
 
-private enum class TodoSmartList(val label: String) {
-    All("全部"),
-    Inbox("收集箱"),
-    Today("今天"),
-    Upcoming("未来"),
-    Completed("已完成")
-}
+private const val SMART_ALL = "smart_all"
+private const val SMART_TODAY = "smart_today"
+private const val SMART_UPCOMING = "smart_upcoming"
+private const val SMART_COMPLETED = "smart_completed"
+
+private data class TodoListOption(
+    val id: String,
+    val label: String,
+    val count: Int,
+    val isSmart: Boolean = false
+)
 
 @Composable
 fun TodoScreen(
@@ -63,16 +69,20 @@ fun TodoScreen(
     modifier: Modifier = Modifier
 ) {
     val tasks by viewModel.tasks.collectAsState()
-    var selectedListName by rememberSaveable { mutableStateOf(TodoSmartList.All.name) }
-    val selectedList = remember(selectedListName) { TodoSmartList.valueOf(selectedListName) }
-    val groups = remember(tasks) { buildTodoGroups(tasks) }
+    val customLists by viewModel.taskLists.collectAsState()
+    var selectedListId by rememberSaveable { mutableStateOf(SMART_ALL) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddTaskDialog by remember { mutableStateOf(false) }
+    var showAddListDialog by remember { mutableStateOf(false) }
+
+    val groups = remember(tasks) { buildTodoGroups(tasks) }
+    val listOptions = remember(groups, customLists) { buildListOptions(groups, customLists) }
+    val selectedList = listOptions.firstOrNull { it.id == selectedListId } ?: listOptions.first()
 
     Scaffold(
         modifier = modifier,
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = { showAddTaskDialog = true }) {
                 Text("＋", style = MaterialTheme.typography.headlineSmall)
             }
         }
@@ -85,10 +95,11 @@ fun TodoScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             TodoHeader(tasks = tasks, selectedList = selectedList)
-            SmartListSwitcher(
-                groups = groups,
-                selectedList = selectedList,
-                onSelect = { selectedListName = it.name }
+            ListSwitcher(
+                listOptions = listOptions,
+                selectedListId = selectedList.id,
+                onSelect = { selectedListId = it },
+                onAddList = { showAddListDialog = true }
             )
             TodoTaskList(
                 groups = groups,
@@ -100,15 +111,28 @@ fun TodoScreen(
         }
     }
 
-    if (showAddDialog) {
+    if (showAddTaskDialog) {
+        val initialListId = defaultTaskListIdFor(selectedList.id)
         TaskEditorDialog(
             title = "新建任务",
             task = null,
-            initialDueAt = defaultDueAtFor(selectedList),
-            onDismiss = { showAddDialog = false },
-            onSave = { taskTitle, note, priority, dueAt, estimatedPomodoros ->
-                viewModel.addTask(taskTitle, note, priority, dueAt, estimatedPomodoros)
-                showAddDialog = false
+            listOptions = listOptions.taskListOptions(),
+            initialListId = initialListId,
+            initialDueAt = defaultDueAtFor(selectedList.id),
+            onDismiss = { showAddTaskDialog = false },
+            onSave = { listId, taskTitle, note, priority, dueAt, estimatedPomodoros ->
+                viewModel.addTask(listId, taskTitle, note, priority, dueAt, estimatedPomodoros)
+                showAddTaskDialog = false
+            }
+        )
+    }
+
+    if (showAddListDialog) {
+        AddListDialog(
+            onDismiss = { showAddListDialog = false },
+            onAdd = { name ->
+                viewModel.addTaskList(name)
+                showAddListDialog = false
             }
         )
     }
@@ -117,10 +141,12 @@ fun TodoScreen(
         TaskEditorDialog(
             title = "编辑任务",
             task = task,
+            listOptions = listOptions.taskListOptions(),
+            initialListId = task.listId,
             initialDueAt = task.dueAt,
             onDismiss = { editingTask = null },
-            onSave = { taskTitle, note, priority, dueAt, estimatedPomodoros ->
-                viewModel.updateTask(task, taskTitle, note, priority, dueAt, estimatedPomodoros)
+            onSave = { listId, taskTitle, note, priority, dueAt, estimatedPomodoros ->
+                viewModel.updateTask(task, listId, taskTitle, note, priority, dueAt, estimatedPomodoros)
                 editingTask = null
             }
         )
@@ -129,89 +155,52 @@ fun TodoScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SmartListSwitcher(
-    groups: TodoGroups,
-    selectedList: TodoSmartList,
-    onSelect: (TodoSmartList) -> Unit
+private fun ListSwitcher(
+    listOptions: List<TodoListOption>,
+    selectedListId: String,
+    onSelect: (String) -> Unit,
+    onAddList: () -> Unit
 ) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        TodoSmartList.entries.forEach { smartList ->
-            val text = "${smartList.label} ${groups.countFor(smartList)}"
-            if (selectedList == smartList) {
-                Button(onClick = { onSelect(smartList) }) { Text(text) }
+        listOptions.forEach { option ->
+            val text = "${option.label} ${option.count}"
+            if (selectedListId == option.id) {
+                Button(onClick = { onSelect(option.id) }) { Text(text) }
             } else {
-                OutlinedButton(onClick = { onSelect(smartList) }) { Text(text) }
+                OutlinedButton(onClick = { onSelect(option.id) }) { Text(text) }
             }
         }
+        OutlinedButton(onClick = onAddList) { Text("新建清单") }
     }
 }
 
 @Composable
 private fun TodoTaskList(
     groups: TodoGroups,
-    selectedList: TodoSmartList,
+    selectedList: TodoListOption,
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
     onRemove: (TaskEntity) -> Unit
 ) {
-    val selectedTasks = groups.tasksFor(selectedList)
+    val selectedTasks = groups.tasksFor(selectedList.id)
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (selectedTasks.isEmpty()) {
-            item(key = "empty-${selectedList.name}") {
+            item(key = "empty-${selectedList.id}") {
                 EmptyTodoCard(selectedList = selectedList)
             }
-            return@LazyColumn
-        }
-
-        if (selectedList == TodoSmartList.All) {
-            taskSection(
-                title = "已过期",
-                tasks = groups.overdue,
-                onCheckedChange = onCheckedChange,
-                onEdit = onEdit,
-                onRemove = onRemove
-            )
-            taskSection(
-                title = "今天",
-                tasks = groups.today,
-                onCheckedChange = onCheckedChange,
-                onEdit = onEdit,
-                onRemove = onRemove
-            )
-            taskSection(
-                title = "收集箱",
-                tasks = groups.inbox,
-                onCheckedChange = onCheckedChange,
-                onEdit = onEdit,
-                onRemove = onRemove
-            )
-            taskSection(
-                title = "未来",
-                tasks = groups.upcoming,
-                onCheckedChange = onCheckedChange,
-                onEdit = onEdit,
-                onRemove = onRemove
-            )
-            taskSection(
-                title = "已完成",
-                tasks = groups.completed,
-                onCheckedChange = onCheckedChange,
-                onEdit = onEdit,
-                onRemove = onRemove
-            )
+        } else if (selectedList.id == SMART_ALL) {
+            taskSection("已过期", groups.overdue, onCheckedChange, onEdit, onRemove)
+            taskSection("今天", groups.today, onCheckedChange, onEdit, onRemove)
+            taskSection("收集箱", groups.inbox, onCheckedChange, onEdit, onRemove)
+            taskSection("未来", groups.upcoming, onCheckedChange, onEdit, onRemove)
+            taskSection("已完成", groups.completed, onCheckedChange, onEdit, onRemove)
         } else {
-            taskSection(
-                title = selectedList.label,
-                tasks = selectedTasks,
-                onCheckedChange = onCheckedChange,
-                onEdit = onEdit,
-                onRemove = onRemove
-            )
+            taskSection(selectedList.label, selectedTasks, onCheckedChange, onEdit, onRemove)
         }
     }
 }
@@ -244,7 +233,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.taskSection(
 }
 
 @Composable
-private fun TodoHeader(tasks: List<TaskEntity>, selectedList: TodoSmartList) {
+private fun TodoHeader(tasks: List<TaskEntity>, selectedList: TodoListOption) {
     val pendingCount = tasks.count { !it.isDone }
     val completedCount = tasks.count { it.isDone }
     val todayCount = tasks.count { !it.isDone && it.dueAt?.let(::isToday) == true }
@@ -263,13 +252,14 @@ private fun TodoHeader(tasks: List<TaskEntity>, selectedList: TodoSmartList) {
 }
 
 @Composable
-private fun EmptyTodoCard(selectedList: TodoSmartList) {
-    val message = when (selectedList) {
-        TodoSmartList.All -> "点击右下角 ＋ 添加第一条任务。"
-        TodoSmartList.Inbox -> "没有未安排日期的任务。新建任务默认会进入收集箱。"
-        TodoSmartList.Today -> "今天没有待办。可以在这里添加今天要做的事。"
-        TodoSmartList.Upcoming -> "没有未来任务。给任务设置后续截止日期后会显示在这里。"
-        TodoSmartList.Completed -> "还没有完成任务。"
+private fun EmptyTodoCard(selectedList: TodoListOption) {
+    val message = when (selectedList.id) {
+        SMART_ALL -> "点击右下角 ＋ 添加第一条任务。"
+        DEFAULT_TASK_LIST_ID -> "没有未安排到自定义清单的任务。"
+        SMART_TODAY -> "今天没有待办。可以在这里添加今天要做的事。"
+        SMART_UPCOMING -> "没有未来任务。给任务设置后续截止日期后会显示在这里。"
+        SMART_COMPLETED -> "还没有完成任务。"
+        else -> "这个清单还没有任务。点击右下角 ＋ 添加。"
     }
 
     Card(Modifier.fillMaxWidth()) {
@@ -334,21 +324,56 @@ private fun TaskRow(
     }
 }
 
+@Composable
+private fun AddListDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("新建清单") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("清单名称") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(name) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("创建")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun TaskEditorDialog(
     title: String,
     task: TaskEntity?,
+    listOptions: List<TodoListOption>,
+    initialListId: String,
     initialDueAt: Long?,
     onDismiss: () -> Unit,
-    onSave: (String, String, Int, Long?, Int) -> Unit
+    onSave: (String, String, String, Int, Long?, Int) -> Unit
 ) {
     val scrollState = rememberScrollState()
     var taskTitle by remember(task?.id) { mutableStateOf(task?.title.orEmpty()) }
     var note by remember(task?.id) { mutableStateOf(task?.note.orEmpty()) }
+    var listId by remember(task?.id, initialListId) { mutableStateOf(initialListId) }
     var priority by remember(task?.id) { mutableIntStateOf(task?.priority ?: 0) }
     var dueAt by remember(task?.id, initialDueAt) { mutableStateOf(task?.dueAt ?: initialDueAt) }
     var estimatedPomodoros by remember(task?.id) { mutableIntStateOf(task?.estimatedPomodoros ?: 0) }
+    var showMoreOptions by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -375,36 +400,49 @@ private fun TaskEditorDialog(
                     label = { Text("备注") },
                     maxLines = 3
                 )
-
-                Text("优先级", style = MaterialTheme.typography.labelLarge)
-                ChoiceButtonGroup(
-                    values = listOf(0, 1, 2, 3),
-                    selectedValue = priority,
-                    label = ::priorityLabel,
-                    onSelect = { priority = it }
-                )
-
-                Text("预计番茄", style = MaterialTheme.typography.labelLarge)
-                ChoiceButtonGroup(
-                    values = listOf(0, 1, 2, 3, 4),
-                    selectedValue = estimatedPomodoros,
-                    label = { it.toString() },
-                    onSelect = { estimatedPomodoros = it }
-                )
-
-                OutlinedButton(onClick = { showDatePicker = true }) {
-                    Text(dueAt?.let { "截止 ${formatDate(it)}" } ?: "添加截止日期")
+                TextButton(onClick = { showMoreOptions = !showMoreOptions }) {
+                    Text(if (showMoreOptions) "收起更多选项" else "更多选项")
                 }
-                if (dueAt != null) {
-                    TextButton(onClick = { dueAt = null }) {
-                        Text("清除截止日期")
+
+                if (showMoreOptions) {
+                    Text("所属清单", style = MaterialTheme.typography.labelLarge)
+                    StringChoiceButtonGroup(
+                        options = listOptions,
+                        selectedId = listId,
+                        onSelect = { listId = it }
+                    )
+
+                    Text("截止日期", style = MaterialTheme.typography.labelLarge)
+                    OutlinedButton(onClick = { showDatePicker = true }) {
+                        Text(dueAt?.let { "截止 ${formatDate(it)}" } ?: "添加截止日期")
                     }
+                    if (dueAt != null) {
+                        TextButton(onClick = { dueAt = null }) {
+                            Text("清除截止日期")
+                        }
+                    }
+
+                    Text("优先级", style = MaterialTheme.typography.labelLarge)
+                    IntChoiceButtonGroup(
+                        values = listOf(0, 1, 2, 3),
+                        selectedValue = priority,
+                        label = ::priorityLabel,
+                        onSelect = { priority = it }
+                    )
+
+                    Text("预计番茄", style = MaterialTheme.typography.labelLarge)
+                    IntChoiceButtonGroup(
+                        values = listOf(0, 1, 2, 3, 4),
+                        selectedValue = estimatedPomodoros,
+                        label = { it.toString() },
+                        onSelect = { estimatedPomodoros = it }
+                    )
                 }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(taskTitle, note, priority, dueAt, estimatedPomodoros) },
+                onClick = { onSave(listId, taskTitle, note, priority, dueAt, estimatedPomodoros) },
                 enabled = taskTitle.isNotBlank()
             ) {
                 Text(if (task == null) "添加" else "保存")
@@ -440,7 +478,7 @@ private fun TaskEditorDialog(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ChoiceButtonGroup(
+private fun IntChoiceButtonGroup(
     values: List<Int>,
     selectedValue: Int,
     label: (Int) -> String,
@@ -461,23 +499,45 @@ private fun ChoiceButtonGroup(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StringChoiceButtonGroup(
+    options: List<TodoListOption>,
+    selectedId: String,
+    onSelect: (String) -> Unit
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { option ->
+            if (selectedId == option.id) {
+                FilledTonalButton(onClick = { onSelect(option.id) }) { Text(option.label) }
+            } else {
+                OutlinedButton(onClick = { onSelect(option.id) }) { Text(option.label) }
+            }
+        }
+    }
+}
+
 private data class TodoGroups(
     val all: List<TaskEntity>,
     val overdue: List<TaskEntity>,
     val today: List<TaskEntity>,
     val inbox: List<TaskEntity>,
     val upcoming: List<TaskEntity>,
-    val completed: List<TaskEntity>
+    val completed: List<TaskEntity>,
+    val byList: Map<String, List<TaskEntity>>
 ) {
-    fun tasksFor(smartList: TodoSmartList): List<TaskEntity> = when (smartList) {
-        TodoSmartList.All -> all
-        TodoSmartList.Inbox -> inbox
-        TodoSmartList.Today -> overdue + today
-        TodoSmartList.Upcoming -> upcoming
-        TodoSmartList.Completed -> completed
+    fun tasksFor(listId: String): List<TaskEntity> = when (listId) {
+        SMART_ALL -> all
+        SMART_TODAY -> overdue + today
+        SMART_UPCOMING -> upcoming
+        SMART_COMPLETED -> completed
+        DEFAULT_TASK_LIST_ID -> inbox
+        else -> byList[listId].orEmpty()
     }
-
-    fun countFor(smartList: TodoSmartList): Int = tasksFor(smartList).size
 }
 
 private fun buildTodoGroups(tasks: List<TaskEntity>): TodoGroups {
@@ -485,7 +545,7 @@ private fun buildTodoGroups(tasks: List<TaskEntity>): TodoGroups {
     val completedTasks = tasks.filter { it.isDone }
     val overdueTasks = pendingTasks.filter { it.dueAt?.let(::isOverdue) == true }
     val todayTasks = pendingTasks.filter { it.dueAt?.let(::isToday) == true }
-    val inboxTasks = pendingTasks.filter { it.dueAt == null }
+    val inboxTasks = pendingTasks.filter { it.listId == DEFAULT_TASK_LIST_ID }
     val upcomingTasks = pendingTasks.filter { it.dueAt?.let { dueAt -> !isOverdue(dueAt) && !isToday(dueAt) } == true }
 
     return TodoGroups(
@@ -494,9 +554,25 @@ private fun buildTodoGroups(tasks: List<TaskEntity>): TodoGroups {
         today = todayTasks,
         inbox = inboxTasks,
         upcoming = upcomingTasks,
-        completed = completedTasks
+        completed = completedTasks,
+        byList = tasks.groupBy { it.listId }
     )
 }
+
+private fun buildListOptions(groups: TodoGroups, customLists: List<TaskListEntity>): List<TodoListOption> =
+    buildList {
+        add(TodoListOption(SMART_ALL, "全部", groups.tasksFor(SMART_ALL).size, isSmart = true))
+        add(TodoListOption(DEFAULT_TASK_LIST_ID, "收集箱", groups.tasksFor(DEFAULT_TASK_LIST_ID).size))
+        customLists.forEach { taskList ->
+            add(TodoListOption(taskList.id, taskList.name, groups.tasksFor(taskList.id).size))
+        }
+        add(TodoListOption(SMART_TODAY, "今天", groups.tasksFor(SMART_TODAY).size, isSmart = true))
+        add(TodoListOption(SMART_UPCOMING, "未来", groups.tasksFor(SMART_UPCOMING).size, isSmart = true))
+        add(TodoListOption(SMART_COMPLETED, "已完成", groups.tasksFor(SMART_COMPLETED).size, isSmart = true))
+    }
+
+private fun List<TodoListOption>.taskListOptions(): List<TodoListOption> =
+    filterNot { it.isSmart }
 
 private fun priorityLabel(priority: Int): String = when (priority) {
     3 -> "高"
@@ -515,8 +591,13 @@ private fun isToday(timestamp: Long): Boolean {
 
 private fun isOverdue(timestamp: Long): Boolean = timestamp < todayRange().first
 
-private fun defaultDueAtFor(selectedList: TodoSmartList): Long? = when (selectedList) {
-    TodoSmartList.Today -> todayRange().first
+private fun defaultTaskListIdFor(selectedListId: String): String = when (selectedListId) {
+    SMART_ALL, SMART_TODAY, SMART_UPCOMING, SMART_COMPLETED -> DEFAULT_TASK_LIST_ID
+    else -> selectedListId
+}
+
+private fun defaultDueAtFor(selectedListId: String): Long? = when (selectedListId) {
+    SMART_TODAY -> todayRange().first
     else -> null
 }
 
