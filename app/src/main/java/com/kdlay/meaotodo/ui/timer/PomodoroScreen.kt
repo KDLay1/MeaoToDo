@@ -43,7 +43,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kdlay.meaotodo.data.local.entity.PomodoroSessionEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
+import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.ui.components.WheelPickerColumn
 
 @Composable
@@ -54,9 +56,11 @@ fun PomodoroScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedDurationMinutes by rememberSaveable { mutableIntStateOf(25) }
+    var targetFocusCount by rememberSaveable { mutableIntStateOf(1) }
     var selectedTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     var showTaskPicker by remember { mutableStateOf(false) }
     var showDurationWheel by remember { mutableStateOf(false) }
+    var showSummary by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
@@ -89,11 +93,15 @@ fun PomodoroScreen(
                     tasks = uiState.tasks,
                     selectedTaskId = selectedTaskId,
                     selectedDurationMinutes = selectedDurationMinutes,
+                    targetFocusCount = targetFocusCount,
+                    summary = uiState.summary,
                     onDurationChange = { selectedDurationMinutes = it },
+                    onTargetFocusCountChange = { targetFocusCount = it },
                     onPickTask = { showTaskPicker = true },
                     onClearTask = { selectedTaskId = null },
                     onOpenDurationWheel = { showDurationWheel = true },
-                    onStart = { viewModel.start(selectedTaskId, selectedDurationMinutes) },
+                    onOpenSummary = { showSummary = true },
+                    onStart = { viewModel.start(selectedTaskId, selectedDurationMinutes, targetFocusCount) },
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -101,7 +109,8 @@ fun PomodoroScreen(
                     uiState = uiState,
                     onPause = viewModel::pause,
                     onResume = viewModel::resume,
-                    onFinish = viewModel::finish,
+                    onCompleteCurrentSession = viewModel::completeCurrentSession,
+                    onSkipBreak = viewModel::skipBreak,
                     onCancel = viewModel::cancel,
                     modifier = Modifier.weight(1f)
                 )
@@ -129,6 +138,14 @@ fun PomodoroScreen(
             }
         )
     }
+
+    if (showSummary) {
+        PomodoroSummaryDialog(
+            summary = uiState.summary,
+            recentSessions = uiState.recentSessions,
+            onDismiss = { showSummary = false }
+        )
+    }
 }
 
 @Composable
@@ -147,7 +164,7 @@ private fun PomodoroHeader(uiState: PomodoroUiState) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("番茄钟", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    text = if (uiState.activeSession == null) "先选任务和时长，再开始专注" else uiState.taskTitle,
+                    text = if (uiState.activeSession == null) "设置本轮计划，再开始专注" else "${uiState.roundLabel} · ${uiState.taskTitle}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.76f),
                     maxLines = 1,
@@ -161,11 +178,7 @@ private fun PomodoroHeader(uiState: PomodoroUiState) {
             ) {
                 Text(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    text = when {
-                        uiState.isRunning -> "专注中"
-                        uiState.isPaused -> "暂停"
-                        else -> "Ready"
-                    },
+                    text = uiState.statusLabel,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -180,10 +193,14 @@ private fun IdlePomodoroPanel(
     tasks: List<TaskEntity>,
     selectedTaskId: String?,
     selectedDurationMinutes: Int,
+    targetFocusCount: Int,
+    summary: PomodoroSummary,
     onDurationChange: (Int) -> Unit,
+    onTargetFocusCountChange: (Int) -> Unit,
     onPickTask: () -> Unit,
     onClearTask: () -> Unit,
     onOpenDurationWheel: () -> Unit,
+    onOpenSummary: () -> Unit,
     onStart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -198,6 +215,8 @@ private fun IdlePomodoroPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        SummaryBar(summary = summary, onClick = onOpenSummary)
+
         TaskBindingCard(
             selectedTask = selectedTask,
             taskCount = tasks.size,
@@ -242,11 +261,77 @@ private fun IdlePomodoroPanel(
             }
         }
 
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("本轮番茄数", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text("每个番茄后自动休息 5 min", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("$targetFocusCount 个", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(1, 2, 3, 4).forEach { count ->
+                        CountChip(
+                            count = count,
+                            selected = targetFocusCount == count,
+                            onClick = { onTargetFocusCountChange(count) }
+                        )
+                    }
+                }
+            }
+        }
+
         Button(
             modifier = Modifier.fillMaxWidth(),
             onClick = onStart
         ) {
-            Text("开始专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
+            Text("开始本轮专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun SummaryBar(summary: PomodoroSummary, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "今日 ${summary.finishedFocusCount} 个番茄 · ${formatCompactDuration(summary.focusSeconds)} · 中断 ${summary.cancelledFocusCount} 次",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text("›", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -307,7 +392,8 @@ private fun ActivePomodoroPanel(
     uiState: PomodoroUiState,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onFinish: () -> Unit,
+    onCompleteCurrentSession: () -> Unit,
+    onSkipBreak: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -336,12 +422,20 @@ private fun ActivePomodoroPanel(
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                Text(
-                    text = if (uiState.isPaused) "暂停中" else "专注中",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = uiState.statusLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = uiState.roundLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
@@ -362,10 +456,18 @@ private fun ActivePomodoroPanel(
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "计划 ${session.plannedDurationSeconds / 60} min · 已专注 ${formatDuration(uiState.elapsedSeconds)}",
+                            text = "计划 ${session.plannedDurationSeconds / 60} min · 已运行 ${formatDuration(uiState.elapsedSeconds)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (uiState.nextLabel.isNotBlank()) {
+                            Text(
+                                text = uiState.nextLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -381,9 +483,13 @@ private fun ActivePomodoroPanel(
                 } else {
                     FilledTonalButton(modifier = Modifier.weight(1f), onClick = onPause) { Text("暂停") }
                 }
-                Button(modifier = Modifier.weight(1f), onClick = onFinish) { Text("完成") }
+                if (uiState.isBreak) {
+                    Button(modifier = Modifier.weight(1f), onClick = onSkipBreak) { Text("跳过休息") }
+                } else {
+                    Button(modifier = Modifier.weight(1f), onClick = onCompleteCurrentSession) { Text("完成本阶段") }
+                }
             }
-            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("放弃本次") }
+            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("放弃本轮") }
         }
     }
 }
@@ -411,6 +517,28 @@ private fun DurationChip(
 }
 
 @Composable
+private fun CountChip(
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surface,
+        contentColor = if (selected) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurface,
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f))
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            text = "$count",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
 private fun DurationWheelDialog(
     initialDurationMinutes: Int,
     onDismiss: () -> Unit,
@@ -425,7 +553,7 @@ private fun DurationWheelDialog(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("滚轮微调", fontWeight = FontWeight.Bold)
                 Text(
-                    text = "滚轮只在点击确定后写入时长，避免覆盖快捷按钮。",
+                    text = "滚轮只在点击确定后写入时长。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -585,9 +713,120 @@ private fun TaskPickerItem(
     }
 }
 
+@Composable
+private fun PomodoroSummaryDialog(
+    summary: PomodoroSummary,
+    recentSessions: List<PomodoroSessionEntity>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("今日专注摘要", fontWeight = FontWeight.Bold)
+                Text(
+                    text = "休息记录暂时保留显示，方便验证循环。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("完成番茄：${summary.finishedFocusCount}", fontWeight = FontWeight.SemiBold)
+                        Text("专注时长：${formatCompactDuration(summary.focusSeconds)}")
+                        Text("中断次数：${summary.cancelledFocusCount}")
+                        Text("休息次数：${summary.finishedBreakCount}")
+                    }
+                }
+                Text("最近记录", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                if (recentSessions.isEmpty()) {
+                    Text("还没有专注记录。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(recentSessions, key = { it.id }) { session ->
+                            RecentSessionItem(session = session)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
+    )
+}
+
+@Composable
+private fun RecentSessionItem(session: PomodoroSessionEntity) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = if (session.type == PomodoroRepository.TYPE_BREAK) "休息" else session.titleSnapshot ?: "空白专注",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "${sessionTypeLabel(session)} · 第 ${session.roundIndex} 轮 · ${sessionStatusLabel(session)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = formatCompactDuration(if (session.actualDurationSeconds > 0) session.actualDurationSeconds else session.plannedDurationSeconds),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+private fun sessionTypeLabel(session: PomodoroSessionEntity): String =
+    if (session.type == PomodoroRepository.TYPE_BREAK) "休息" else "专注"
+
+private fun sessionStatusLabel(session: PomodoroSessionEntity): String = when (session.status) {
+    PomodoroRepository.STATUS_FINISHED -> "已完成"
+    PomodoroRepository.STATUS_CANCELLED -> "已放弃"
+    PomodoroRepository.STATUS_PAUSED -> "暂停中"
+    PomodoroRepository.STATUS_RUNNING -> "进行中"
+    else -> session.status
+}
+
 private fun formatDuration(seconds: Int): String {
     val safeSeconds = seconds.coerceAtLeast(0)
     val minutes = safeSeconds / 60
     val remainingSeconds = safeSeconds % 60
     return "%02d:%02d".format(minutes, remainingSeconds)
+}
+
+private fun formatCompactDuration(seconds: Int): String {
+    val safeSeconds = seconds.coerceAtLeast(0)
+    val hours = safeSeconds / 3600
+    val minutes = (safeSeconds % 3600) / 60
+    return when {
+        hours > 0 && minutes > 0 -> "${hours}h${minutes}m"
+        hours > 0 -> "${hours}h"
+        else -> "${minutes}m"
+    }
 }
