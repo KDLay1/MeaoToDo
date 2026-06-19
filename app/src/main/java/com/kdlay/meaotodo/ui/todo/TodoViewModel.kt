@@ -19,14 +19,36 @@ class TodoViewModel(
         initialValue = emptyList()
     )
 
-    fun addTask(title: String, note: String, priority: Int, dueAt: Long?) {
+    fun addTask(title: String, note: String, priority: Int, dueAt: Long?, estimatedPomodoros: Int) {
         if (title.isBlank()) return
         viewModelScope.launch {
             taskRepository.addTask(
                 title = title,
                 note = note,
                 priority = priority,
-                dueAt = dueAt
+                dueAt = dueAt,
+                estimatedPomodoros = estimatedPomodoros
+            )
+        }
+    }
+
+    fun updateTask(
+        task: TaskEntity,
+        title: String,
+        note: String,
+        priority: Int,
+        dueAt: Long?,
+        estimatedPomodoros: Int
+    ) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            taskRepository.updateTask(
+                id = task.id,
+                title = title,
+                note = note,
+                priority = priority,
+                dueAt = dueAt,
+                estimatedPomodoros = estimatedPomodoros
             )
         }
     }
@@ -34,6 +56,12 @@ class TodoViewModel(
     fun setDone(task: TaskEntity, isDone: Boolean) {
         viewModelScope.launch {
             taskRepository.setDone(task.id, isDone)
+        }
+    }
+
+    fun removeTask(task: TaskEntity) {
+        viewModelScope.launch {
+            taskRepository.softDelete(task.id)
         }
     }
 
