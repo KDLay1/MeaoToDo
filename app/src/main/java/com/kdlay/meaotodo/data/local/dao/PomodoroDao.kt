@@ -11,6 +11,9 @@ interface PomodoroDao {
     @Query("SELECT * FROM pomodoro_sessions WHERE deletedAt IS NULL ORDER BY startedAt DESC")
     fun observeSessions(): Flow<List<PomodoroSessionEntity>>
 
+    @Query("SELECT * FROM pomodoro_sessions WHERE deletedAt IS NULL ORDER BY startedAt DESC LIMIT :limit")
+    fun observeRecentSessions(limit: Int): Flow<List<PomodoroSessionEntity>>
+
     @Query("SELECT * FROM pomodoro_sessions WHERE status IN ('running', 'paused') AND deletedAt IS NULL ORDER BY startedAt DESC LIMIT 1")
     fun observeActiveSession(): Flow<PomodoroSessionEntity?>
 
