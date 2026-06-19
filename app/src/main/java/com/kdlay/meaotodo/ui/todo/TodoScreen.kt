@@ -236,7 +236,7 @@ private fun TodoCalendarModeScreen(
     onRemove: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         CalendarTopBar(
             selectedList = selectedList,
             onPickList = onPickList,
@@ -274,11 +274,11 @@ private fun CalendarTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Todo 日历", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("按时间查看任务", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            Text("日历", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("${selectedList.label} · 按时间查看", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             TodoListPickerButton(selectedList = selectedList, onClick = onPickList)
             FilledTonalButton(onClick = onAddTask) { Text("＋") }
         }
