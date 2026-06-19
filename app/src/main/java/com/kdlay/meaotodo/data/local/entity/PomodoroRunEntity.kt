@@ -3,21 +3,18 @@ package com.kdlay.meaotodo.data.local.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "pomodoro_sessions")
-data class PomodoroSessionEntity(
+@Entity(tableName = "pomodoro_runs")
+data class PomodoroRunEntity(
     @PrimaryKey val id: String,
-    val runId: String? = null,
-    val roundIndex: Int = 1,
     val taskId: String? = null,
     val titleSnapshot: String? = null,
-    val type: String,
-    val plannedDurationSeconds: Int,
-    val actualDurationSeconds: Int = 0,
-    val startedAt: Long,
-    val pausedAt: Long? = null,
-    val endedAt: Long? = null,
-    val accumulatedPausedSeconds: Int = 0,
+    val focusDurationSeconds: Int,
+    val breakDurationSeconds: Int,
+    val targetFocusCount: Int,
+    val completedFocusCount: Int = 0,
     val status: String,
+    val startedAt: Long,
+    val endedAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long? = null

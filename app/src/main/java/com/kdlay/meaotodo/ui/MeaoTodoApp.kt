@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kdlay.meaotodo.ui.timer.PomodoroScreen
+import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoScreen
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
@@ -42,7 +44,10 @@ private enum class MainTab(val label: String, val icon: String) {
 private val mainTabs = MainTab.entries.toList()
 
 @Composable
-fun MeaoTodoApp(todoViewModel: TodoViewModel) {
+fun MeaoTodoApp(
+    todoViewModel: TodoViewModel,
+    pomodoroViewModel: PomodoroViewModel
+) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
 
     Scaffold(
@@ -71,39 +76,9 @@ fun MeaoTodoApp(todoViewModel: TodoViewModel) {
         ) {
             when (selectedTab) {
                 MainTab.Today -> TodoScreen(viewModel = todoViewModel)
-                MainTab.Timer -> TimerScreen()
+                MainTab.Timer -> PomodoroScreen(viewModel = pomodoroViewModel)
                 MainTab.Ledger -> LedgerScreen()
                 MainTab.Board -> BoardScreen()
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimerScreen(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 2.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 34.dp, vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("25:00", fontSize = 72.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    text = "番茄钟状态机会在这里接入。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }

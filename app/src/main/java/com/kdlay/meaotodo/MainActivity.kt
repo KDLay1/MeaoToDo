@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.kdlay.meaotodo.core.AppContainer
 import com.kdlay.meaotodo.ui.MeaoTodoApp
 import com.kdlay.meaotodo.ui.theme.MeaoTodoTheme
+import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
 class MainActivity : ComponentActivity() {
@@ -17,10 +18,17 @@ class MainActivity : ComponentActivity() {
             this,
             TodoViewModel.factory(appContainer.taskRepository, appContainer.taskListRepository)
         )[TodoViewModel::class.java]
+        val pomodoroViewModel = ViewModelProvider(
+            this,
+            PomodoroViewModel.factory(appContainer.pomodoroRepository, appContainer.taskRepository)
+        )[PomodoroViewModel::class.java]
 
         setContent {
             MeaoTodoTheme {
-                MeaoTodoApp(todoViewModel = todoViewModel)
+                MeaoTodoApp(
+                    todoViewModel = todoViewModel,
+                    pomodoroViewModel = pomodoroViewModel
+                )
             }
         }
     }

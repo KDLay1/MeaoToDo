@@ -21,7 +21,7 @@ class AppContainer(context: Context) {
 
     val taskRepository = TaskRepository(database.taskDao(), database.syncOutboxDao())
     val taskListRepository = TaskListRepository(database.taskListDao(), database.syncOutboxDao())
-    val pomodoroRepository = PomodoroRepository(database.pomodoroDao(), database.syncOutboxDao())
+    val pomodoroRepository = PomodoroRepository(database.pomodoroDao(), database.pomodoroRunDao(), database.syncOutboxDao())
     val ledgerRepository = LedgerRepository(database.ledgerDao(), database.syncOutboxDao())
 
     val wifiDiscoveryService = AndroidNsdWifiDiscoveryService(appContext)
