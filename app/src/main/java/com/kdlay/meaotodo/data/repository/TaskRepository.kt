@@ -2,6 +2,7 @@ package com.kdlay.meaotodo.data.repository
 
 import com.kdlay.meaotodo.data.local.dao.SyncOutboxDao
 import com.kdlay.meaotodo.data.local.dao.TaskDao
+import com.kdlay.meaotodo.data.local.entity.DEFAULT_TASK_LIST_ID
 import com.kdlay.meaotodo.data.local.entity.SyncOutboxEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import java.util.UUID
@@ -16,6 +17,7 @@ class TaskRepository(
     val activeTasks = taskDao.observeActiveTasks()
 
     suspend fun addTask(
+        listId: String = DEFAULT_TASK_LIST_ID,
         title: String,
         note: String = "",
         priority: Int = 0,
@@ -26,6 +28,7 @@ class TaskRepository(
         val id = UUID.randomUUID().toString()
         val task = TaskEntity(
             id = id,
+            listId = listId.ifBlank { DEFAULT_TASK_LIST_ID },
             title = title.trim(),
             note = note.trim(),
             priority = priority.coerceIn(0, 3),
@@ -40,6 +43,7 @@ class TaskRepository(
 
     suspend fun updateTask(
         id: String,
+        listId: String,
         title: String,
         note: String,
         priority: Int,
@@ -49,6 +53,7 @@ class TaskRepository(
         val existing = taskDao.findById(id) ?: return false
         val now = System.currentTimeMillis()
         val updated = existing.copy(
+            listId = listId.ifBlank { DEFAULT_TASK_LIST_ID },
             title = title.trim(),
             note = note.trim(),
             priority = priority.coerceIn(0, 3),
@@ -69,7 +74,7 @@ class TaskRepository(
         return true
     }
 
-    suspend fun softDelete(id: String): Boolean {
+    suspend fun removeTask(id: String): Boolean {
         val now = System.currentTimeMillis()
         taskDao.softDelete(id = id, deletedAt = now)
         val deleted = taskDao.findById(id) ?: return false
@@ -92,6 +97,7 @@ class TaskRepository(
 
     private fun TaskEntity.toSyncPayload(): TaskSyncPayload = TaskSyncPayload(
         id = id,
+        listId = listId,
         title = title,
         note = note,
         isDone = isDone,
@@ -107,6 +113,7 @@ class TaskRepository(
     @Serializable
     private data class TaskSyncPayload(
         val id: String,
+        val listId: String,
         val title: String,
         val note: String,
         val isDone: Boolean,
