@@ -20,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
-import kotlinx.coroutines.flow.collect
 
 @Composable
 fun TodoScreen(
@@ -43,6 +42,13 @@ fun TodoScreen(
 
     val groups = remember(tasks) { buildTodoGroups(tasks) }
     val listOptions = remember(groups, customLists) { buildListOptions(groups, customLists) }
+
+    LaunchedEffect(listOptions, selectedListId) {
+        if (listOptions.none { it.id == selectedListId }) {
+            selectedListId = SMART_ALL
+        }
+    }
+
     val selectedList = listOptions.firstOrNull { it.id == selectedListId } ?: listOptions.first()
     val selectedTasks = groups.tasksFor(selectedList.id)
 
