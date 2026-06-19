@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 
@@ -192,19 +193,13 @@ private fun TodoListModeScreen(
     onRemove: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        TodoHeader(
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CompactTodoHeader(
             tasks = tasks,
             selectedList = selectedList,
-            selectedTasks = selectedTasks
+            selectedTasks = selectedTasks,
+            onPickList = onPickList
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TodoListPickerButton(selectedList = selectedList, onClick = onPickList)
-        }
         DisplayModeSwitcher(
             displayMode = displayMode,
             calendarMode = calendarMode,
@@ -220,6 +215,63 @@ private fun TodoListModeScreen(
             onEdit = onEdit,
             onRemove = onRemove
         )
+    }
+}
+
+@Composable
+private fun CompactTodoHeader(
+    tasks: List<TaskEntity>,
+    selectedList: TodoListOption,
+    selectedTasks: List<TaskEntity>,
+    onPickList: () -> Unit
+) {
+    val pendingCount = tasks.count { !it.isDone }
+    val todayCount = tasks.count { !it.isDone && it.dueAt?.let(::isToday) == true }
+    val completedCount = tasks.count { it.isDone }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = selectedList.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "待办 $pendingCount · 今天 $todayCount · 完成 $completedCount",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Surface(
+                modifier = Modifier.clickable(onClick = onPickList),
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("${selectedTasks.size} 项", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text("▼", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }
 
