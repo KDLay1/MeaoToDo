@@ -16,7 +16,8 @@ class TaskRepository(
         title: String,
         note: String = "",
         priority: Int = 0,
-        dueAt: Long? = null
+        dueAt: Long? = null,
+        estimatedPomodoros: Int = 0
     ) {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
@@ -24,32 +25,109 @@ class TaskRepository(
             id = id,
             title = title.trim(),
             note = note.trim(),
-            priority = priority,
+            priority = priority.coerceIn(0, 3),
             dueAt = dueAt,
+            estimatedPomodoros = estimatedPomodoros.coerceAtLeast(0),
             createdAt = now,
             updatedAt = now
         )
         taskDao.upsert(task)
-        enqueueChange(entityType = "task", entityId = id, operation = "upsert", createdAt = now)
+        enqueueChange(task = task, operation = "upsert", createdAt = now)
+    }
+
+    suspend fun updateTask(
+        id: String,
+        title: String,
+        note: String,
+        priority: Int,
+        dueAt: Long?,
+        estimatedPomodoros: Int
+    ) {
+        val existing = taskDao.findById(id) ?: return
+        val now = System.currentTimeMillis()
+        val updated = existing.copy(
+            title = title.trim(),
+            note = note.trim(),
+            priority = priority.coerceIn(0, 3),
+            dueAt = dueAt,
+            estimatedPomodoros = estimatedPomodoros.coerceAtLeast(0),
+            updatedAt = now
+        )
+        taskDao.upsert(updated)
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
     }
 
     suspend fun setDone(id: String, isDone: Boolean) {
         val now = System.currentTimeMillis()
         taskDao.setDone(id = id, isDone = isDone, updatedAt = now)
-        enqueueChange(entityType = "task", entityId = id, operation = "upsert", createdAt = now)
+        val updated = taskDao.findById(id) ?: return
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
     }
 
-    private suspend fun enqueueChange(entityType: String, entityId: String, operation: String, createdAt: Long) {
-        // 第一版先记录变更索引，后面再替换为完整 JSON 序列化。
+    suspend fun softDelete(id: String) {
+        val now = System.currentTimeMillis()
+        taskDao.softDelete(id = id, deletedAt = now)
+        val deleted = taskDao.findById(id) ?: return
+        enqueueChange(task = deleted, operation = "delete", createdAt = now)
+    }
+
+    private suspend fun enqueueChange(task: TaskEntity, operation: String, createdAt: Long) {
         syncOutboxDao.enqueue(
             SyncOutboxEntity(
                 id = UUID.randomUUID().toString(),
-                entityType = entityType,
-                entityId = entityId,
+                entityType = "task",
+                entityId = task.id,
                 operation = operation,
-                payloadJson = "{}",
+                payloadJson = task.toPayloadJson(),
                 createdAt = createdAt
             )
         )
+    }
+
+    private fun TaskEntity.toPayloadJson(): String = buildString {
+        append("{")
+        appendJsonField("id", id)
+        append(",")
+        appendJsonField("title", title)
+        append(",")
+        appendJsonField("note", note)
+        append(",\"isDone\":")
+        append(isDone)
+        append(",\"priority\":")
+        append(priority)
+        append(",\"dueAt\":")
+        append(dueAt?.toString() ?: "null")
+        append(",\"estimatedPomodoros\":")
+        append(estimatedPomodoros)
+        append(",\"actualPomodoros\":")
+        append(actualPomodoros)
+        append(",\"createdAt\":")
+        append(createdAt)
+        append(",\"updatedAt\":")
+        append(updatedAt)
+        append(",\"deletedAt\":")
+        append(deletedAt?.toString() ?: "null")
+        append("}")
+    }
+
+    private fun StringBuilder.appendJsonField(name: String, value: String) {
+        append("\"")
+        append(name)
+        append("\":\"")
+        append(value.escapeJson())
+        append("\"")
+    }
+
+    private fun String.escapeJson(): String = buildString {
+        for (char in this@escapeJson) {
+            when (char) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> append(char)
+            }
+        }
     }
 }
