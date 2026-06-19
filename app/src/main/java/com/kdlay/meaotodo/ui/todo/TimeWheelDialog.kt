@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,15 +24,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlin.math.abs
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -51,7 +56,7 @@ internal fun TimeWheelDialog(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("选择截止时间", fontWeight = FontWeight.Bold)
                 Text(
-                    text = "点选常用时间，或用滚轮微调。",
+                    text = "滑动滚轮，让目标时间停在中间。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -113,10 +118,10 @@ internal fun TimeWheelDialog(
                         title = "小时",
                         values = (0..23).toList(),
                         selectedValue = selectedHour,
-                        onSelect = { selectedHour = it }
+                        onCenteredValueChange = { selectedHour = it }
                     )
                     Text(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 70.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 72.dp),
                         text = ":",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
@@ -126,7 +131,7 @@ internal fun TimeWheelDialog(
                         title = "分钟",
                         values = (0..59).toList(),
                         selectedValue = selectedMinute,
-                        onSelect = { selectedMinute = it }
+                        onCenteredValueChange = { selectedMinute = it }
                     )
                 }
             }
@@ -171,10 +176,34 @@ private fun TimeWheelColumn(
     title: String,
     values: List<Int>,
     selectedValue: Int,
-    onSelect: (Int) -> Unit
+    onCenteredValueChange: (Int) -> Unit
 ) {
     val selectedIndex = values.indexOf(selectedValue).coerceAtLeast(0)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (selectedIndex - 2).coerceAtLeast(0))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+
+    LaunchedEffect(listState, values) {
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+            layoutInfo.visibleItemsInfo
+                .minByOrNull { item -> abs((item.offset + item.size / 2) - viewportCenter) }
+                ?.index
+        }
+            .distinctUntilChanged()
+            .collect { centeredIndex ->
+                val centeredValue = centeredIndex?.let { values.getOrNull(it) }
+                if (centeredValue != null && centeredValue != selectedValue) {
+                    onCenteredValueChange(centeredValue)
+                }
+            }
+    }
+
+    LaunchedEffect(selectedValue) {
+        val targetIndex = values.indexOf(selectedValue)
+        if (targetIndex >= 0 && !listState.isScrollInProgress) {
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
 
     Column(
         modifier = Modifier.width(96.dp),
@@ -182,27 +211,38 @@ private fun TimeWheelColumn(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-        ) {
-            LazyColumn(
+        Box(contentAlignment = Alignment.Center) {
+            Surface(
                 modifier = Modifier
-                    .height(176.dp)
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .width(96.dp)
+                    .height(180.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
             ) {
-                items(values, key = { it }) { value ->
-                    TimeWheelItem(
-                        value = value,
-                        selected = value == selectedValue,
-                        onClick = { onSelect(value) }
-                    )
+                LazyColumn(
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    state = listState,
+                    contentPadding = PaddingValues(vertical = 68.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    items(values, key = { it }) { value ->
+                        TimeWheelItem(
+                            value = value,
+                            selected = value == selectedValue
+                        )
+                    }
                 }
             }
+            Surface(
+                modifier = Modifier
+                    .width(82.dp)
+                    .height(42.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.34f))
+            ) {}
         }
     }
 }
@@ -210,16 +250,13 @@ private fun TimeWheelColumn(
 @Composable
 private fun TimeWheelItem(
     value: Int,
-    selected: Boolean,
-    onClick: () -> Unit
+    selected: Boolean
 ) {
     Surface(
-        modifier = Modifier
-            .width(76.dp)
-            .clickable(onClick = onClick),
+        modifier = Modifier.width(76.dp),
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        color = Color.Transparent,
+        contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     ) {
         Box(
             modifier = Modifier.padding(vertical = if (selected) 9.dp else 8.dp),
