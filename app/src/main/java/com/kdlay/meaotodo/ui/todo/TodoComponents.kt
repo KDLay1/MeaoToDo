@@ -491,7 +491,7 @@ private fun CompleteButton(
 @Composable
 private fun MetadataRow(task: TaskEntity) {
     val metadata = buildList {
-        task.dueAt?.let { add("截止 ${formatDate(it)}") }
+        task.dueAt?.let { add("截止 ${formatDueAt(task)}") }
         if (task.estimatedPomodoros > 0) add("预计 ${task.estimatedPomodoros} 番茄")
         if (task.actualPomodoros > 0) add("已专注 ${task.actualPomodoros}")
     }
