@@ -6,6 +6,7 @@ import com.kdlay.meaotodo.data.local.MeaoDatabase
 import com.kdlay.meaotodo.data.repository.LedgerRepository
 import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.data.repository.TaskRepository
+import com.kdlay.meaotodo.data.repository.TodoRepository
 import com.kdlay.meaotodo.sync.AndroidNsdWifiDiscoveryService
 import com.kdlay.meaotodo.sync.WifiSyncGateway
 
@@ -18,7 +19,8 @@ class AppContainer(context: Context) {
         "meao_todo.db"
     ).fallbackToDestructiveMigration().build()
 
-    val taskRepository = TaskRepository(
+    val taskRepository = TaskRepository(database.taskDao(), database.syncOutboxDao())
+    val todoRepository = TodoRepository(
         taskDao = database.taskDao(),
         taskListDao = database.taskListDao(),
         syncOutboxDao = database.syncOutboxDao()
