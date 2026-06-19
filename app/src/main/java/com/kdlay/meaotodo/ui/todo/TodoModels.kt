@@ -12,6 +12,17 @@ internal const val SMART_TODAY = "smart_today"
 internal const val SMART_UPCOMING = "smart_upcoming"
 internal const val SMART_COMPLETED = "smart_completed"
 
+internal enum class TodoDisplayMode(val label: String) {
+    List("列表"),
+    Calendar("日历")
+}
+
+internal enum class TodoCalendarMode(val label: String) {
+    Week("本周"),
+    Month("本月"),
+    Year("年度")
+}
+
 internal enum class TodoListKind {
     SMART,
     SYSTEM,
@@ -88,8 +99,25 @@ internal fun priorityLabel(priority: Int): String = when (priority) {
     else -> "普通"
 }
 
+internal fun taskTimeComparator(): Comparator<TaskEntity> =
+    compareBy<TaskEntity> { !it.hasDueTime }.thenBy { it.dueAt ?: Long.MAX_VALUE }
+
+internal fun tasksForDay(tasks: List<TaskEntity>, day: Long): List<TaskEntity> =
+    tasks.filter { task -> task.dueAt?.let { startOfDay(it) == startOfDay(day) } == true }
+        .sortedWith(taskTimeComparator())
+
 internal fun formatDate(timestamp: Long): String =
     DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestamp))
+
+internal fun formatTime(timestamp: Long): String {
+    val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+    return "%02d:%02d".format(calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE))
+}
+
+internal fun formatDueAt(task: TaskEntity): String {
+    val dueAt = task.dueAt ?: return ""
+    return if (task.hasDueTime) "${formatDate(dueAt)} ${formatTime(dueAt)}" else formatDate(dueAt)
+}
 
 internal fun isToday(timestamp: Long): Boolean {
     val range = todayRange()
@@ -103,19 +131,92 @@ internal fun defaultTaskListIdFor(selectedListId: String): String = when (select
     else -> selectedListId
 }
 
-internal fun defaultDueAtFor(selectedListId: String): Long? = when (selectedListId) {
-    SMART_TODAY -> todayRange().first
+internal fun defaultDueAtFor(
+    selectedListId: String,
+    displayMode: TodoDisplayMode = TodoDisplayMode.List,
+    selectedDate: Long = System.currentTimeMillis()
+): Long? = when {
+    displayMode == TodoDisplayMode.Calendar -> startOfDay(selectedDate)
+    selectedListId == SMART_TODAY -> todayRange().first
     else -> null
 }
 
-private fun todayRange(): Pair<Long, Long> {
+internal fun todayRange(): Pair<Long, Long> {
+    val start = startOfDay(System.currentTimeMillis())
+    return start to addDays(start, 1)
+}
+
+internal fun startOfDay(timestamp: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = timestamp
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+internal fun startOfWeek(timestamp: Long): Long {
     val calendar = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
+        timeInMillis = startOfDay(timestamp)
+        firstDayOfWeek = Calendar.MONDAY
     }
-    val start = calendar.timeInMillis
-    calendar.add(Calendar.DAY_OF_YEAR, 1)
-    return start to calendar.timeInMillis
+    while (calendar.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) {
+        calendar.add(Calendar.DAY_OF_YEAR, -1)
+    }
+    return calendar.timeInMillis
+}
+
+internal fun startOfMonth(timestamp: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = startOfDay(timestamp)
+    set(Calendar.DAY_OF_MONTH, 1)
+}.timeInMillis
+
+internal fun startOfMonth(year: Int, month: Int): Long = Calendar.getInstance().apply {
+    set(Calendar.YEAR, year)
+    set(Calendar.MONTH, month)
+    set(Calendar.DAY_OF_MONTH, 1)
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+internal fun startOfYear(year: Int): Long = startOfMonth(year, Calendar.JANUARY)
+
+internal fun addDays(timestamp: Long, days: Int): Long = Calendar.getInstance().apply {
+    timeInMillis = timestamp
+    add(Calendar.DAY_OF_YEAR, days)
+}.timeInMillis
+
+internal fun addMonths(timestamp: Long, months: Int): Long = Calendar.getInstance().apply {
+    timeInMillis = timestamp
+    add(Calendar.MONTH, months)
+}.timeInMillis
+
+internal fun combineDateAndTime(dateTimestamp: Long, hour: Int, minute: Int): Long = Calendar.getInstance().apply {
+    timeInMillis = startOfDay(dateTimestamp)
+    set(Calendar.HOUR_OF_DAY, hour.coerceIn(0, 23))
+    set(Calendar.MINUTE, minute.coerceIn(0, 59))
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+internal fun hourOf(timestamp: Long): Int = Calendar.getInstance().apply { timeInMillis = timestamp }.get(Calendar.HOUR_OF_DAY)
+internal fun minuteOf(timestamp: Long): Int = Calendar.getInstance().apply { timeInMillis = timestamp }.get(Calendar.MINUTE)
+internal fun dayOfMonth(timestamp: Long): Int = Calendar.getInstance().apply { timeInMillis = timestamp }.get(Calendar.DAY_OF_MONTH)
+internal fun monthOf(timestamp: Long): Int = Calendar.getInstance().apply { timeInMillis = timestamp }.get(Calendar.MONTH)
+internal fun yearOf(timestamp: Long): Int = Calendar.getInstance().apply { timeInMillis = timestamp }.get(Calendar.YEAR)
+
+internal fun weekdayLabel(timestamp: Long): String = when (Calendar.getInstance().apply { timeInMillis = timestamp }.get(Calendar.DAY_OF_WEEK)) {
+    Calendar.MONDAY -> "周一"
+    Calendar.TUESDAY -> "周二"
+    Calendar.WEDNESDAY -> "周三"
+    Calendar.THURSDAY -> "周四"
+    Calendar.FRIDAY -> "周五"
+    Calendar.SATURDAY -> "周六"
+    else -> "周日"
+}
+
+internal fun monthTitle(timestamp: Long): String {
+    val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+    return "${calendar.get(Calendar.YEAR)} 年 ${calendar.get(Calendar.MONTH) + 1} 月"
 }
