@@ -15,7 +15,7 @@ class MainActivity : ComponentActivity() {
         val appContainer = AppContainer(applicationContext)
         val todoViewModel = ViewModelProvider(
             this,
-            TodoViewModel.factory(appContainer.todoRepository)
+            TodoViewModel.factory(appContainer.taskRepository, appContainer.taskListRepository)
         )[TodoViewModel::class.java]
 
         setContent {
