@@ -4,25 +4,47 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
-import com.kdlay.meaotodo.data.repository.TaskRepository
+import com.kdlay.meaotodo.data.local.entity.TaskListEntity
+import com.kdlay.meaotodo.data.repository.TodoRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class TodoViewModel(
-    private val taskRepository: TaskRepository
+    private val todoRepository: TodoRepository
 ) : ViewModel() {
-    val tasks: StateFlow<List<TaskEntity>> = taskRepository.activeTasks.stateIn(
+    val tasks: StateFlow<List<TaskEntity>> = todoRepository.activeTasks.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
     )
 
-    fun addTask(title: String, note: String, priority: Int, dueAt: Long?, estimatedPomodoros: Int) {
+    val taskLists: StateFlow<List<TaskListEntity>> = todoRepository.activeTaskLists.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
+    fun addTaskList(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            todoRepository.addTaskList(name)
+        }
+    }
+
+    fun addTask(
+        listId: String,
+        title: String,
+        note: String,
+        priority: Int,
+        dueAt: Long?,
+        estimatedPomodoros: Int
+    ) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            taskRepository.addTask(
+            todoRepository.addTask(
+                listId = listId,
                 title = title,
                 note = note,
                 priority = priority,
@@ -34,6 +56,7 @@ class TodoViewModel(
 
     fun updateTask(
         task: TaskEntity,
+        listId: String,
         title: String,
         note: String,
         priority: Int,
@@ -42,8 +65,9 @@ class TodoViewModel(
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            taskRepository.updateTask(
+            todoRepository.updateTask(
                 id = task.id,
+                listId = listId,
                 title = title,
                 note = note,
                 priority = priority,
@@ -55,23 +79,23 @@ class TodoViewModel(
 
     fun setDone(task: TaskEntity, isDone: Boolean) {
         viewModelScope.launch {
-            taskRepository.setDone(task.id, isDone)
+            todoRepository.setDone(task.id, isDone)
         }
     }
 
     fun removeTask(task: TaskEntity) {
         viewModelScope.launch {
-            taskRepository.softDelete(task.id)
+            todoRepository.removeTask(task.id)
         }
     }
 
     companion object {
-        fun factory(taskRepository: TaskRepository): ViewModelProvider.Factory =
+        fun factory(todoRepository: TodoRepository): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(TodoViewModel::class.java))
-                    return TodoViewModel(taskRepository) as T
+                    return TodoViewModel(todoRepository) as T
                 }
             }
     }
