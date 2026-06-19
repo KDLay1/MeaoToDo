@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
@@ -107,7 +109,7 @@ fun PomodoroScreen(
 
     if (showTaskPicker) {
         TaskPickerDialog(
-            tasks = uiState.tasks.filter { !it.isDone },
+            tasks = uiState.tasks,
             selectedTaskId = selectedTaskId,
             onSelect = { selectedTaskId = it },
             onClear = { selectedTaskId = null },
@@ -129,10 +131,10 @@ private fun PomodoroHeader(uiState: PomodoroUiState) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("番茄钟", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    text = if (uiState.activeSession == null) "选择时长和任务，也可以空白开始" else uiState.taskTitle,
+                    text = if (uiState.activeSession == null) "先选任务和时长，再开始专注" else uiState.taskTitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.76f),
                     maxLines = 1,
@@ -174,87 +176,52 @@ private fun IdlePomodoroPanel(
     val selectedTask = tasks.firstOrNull { it.id == selectedTaskId }
     val quickDurations = listOf(15, 25, 45, 60, 90)
     val wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120)
+    val scrollState = rememberScrollState()
 
     Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("当前任务", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = selectedTask?.title ?: "空白专注",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalButton(onClick = onPickTask) {
-                            Text(if (selectedTask == null) "选择任务" else "更换任务")
-                        }
-                        if (selectedTask != null) {
-                            TextButton(onClick = onClearTask) { Text("清除绑定") }
-                        }
-                    }
-                }
-            }
+        TaskBindingCard(
+            selectedTask = selectedTask,
+            taskCount = tasks.size,
+            onPickTask = onPickTask,
+            onClearTask = onClearTask
+        )
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Text("专注时长", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "$selectedDurationMinutes min",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("专注时长", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = "$selectedDurationMinutes min",
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        quickDurations.forEach { duration ->
-                            DurationChip(
-                                duration = duration,
-                                selected = selectedDurationMinutes == duration,
-                                onClick = { onDurationChange(duration) }
-                            )
-                        }
+                    quickDurations.forEach { duration ->
+                        DurationChip(
+                            duration = duration,
+                            selected = selectedDurationMinutes == duration,
+                            onClick = { onDurationChange(duration) }
+                        )
                     }
-                    WheelPickerColumn(
-                        title = "分钟",
-                        values = wheelDurations,
-                        selectedValue = selectedDurationMinutes,
-                        onCenteredValueChange = onDurationChange,
-                        itemLabel = { it.toString() },
-                        columnWidth = 112.dp,
-                        itemWidth = 86.dp
-                    )
                 }
             }
         }
@@ -263,7 +230,89 @@ private fun IdlePomodoroPanel(
             modifier = Modifier.fillMaxWidth(),
             onClick = onStart
         ) {
-            Text("开始专注", modifier = Modifier.padding(vertical = 6.dp), fontWeight = FontWeight.Bold)
+            Text("开始专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("滚轮微调", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "快捷时长不够用时，再滑动这里。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                WheelPickerColumn(
+                    title = "分钟",
+                    values = wheelDurations,
+                    selectedValue = selectedDurationMinutes,
+                    onCenteredValueChange = onDurationChange,
+                    itemLabel = { it.toString() },
+                    columnWidth = 112.dp,
+                    itemWidth = 86.dp,
+                    viewportHeight = 150.dp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskBindingCard(
+    selectedTask: TaskEntity?,
+    taskCount: Int,
+    onPickTask: () -> Unit,
+    onClearTask: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPickTask),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("当前任务", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text("点击更换", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+            Text(
+                text = selectedTask?.title ?: "空白专注",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (selectedTask == null) {
+                    if (taskCount == 0) "当前还没有任务，可先直接开始空白番茄钟。" else "点击这张卡片，可以绑定一个 Todo 任务。"
+                } else {
+                    "已绑定 Todo，完成后会保存任务标题快照。"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (selectedTask != null) {
+                TextButton(onClick = onClearTask) { Text("清除绑定，改为空白专注") }
+            }
         }
     }
 }
@@ -390,7 +439,7 @@ private fun TaskPickerDialog(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("绑定任务", fontWeight = FontWeight.Bold)
                 Text(
-                    text = "也可以清除绑定，直接开始空白番茄钟。",
+                    text = "选择一个 Todo 任务，或保留空白专注。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -415,19 +464,28 @@ private fun TaskPickerDialog(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                LazyColumn(
-                    modifier = Modifier.heightIn(max = 360.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(tasks, key = { it.id }) { task ->
-                        TaskPickerItem(
-                            task = task,
-                            selected = task.id == selectedTaskId,
-                            onClick = {
-                                onSelect(task.id)
-                                onDismiss()
-                            }
-                        )
+                if (tasks.isEmpty()) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                        text = "还没有可绑定的 Todo 任务。可以先空白开始，或回到今日页添加任务。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 360.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(tasks, key = { it.id }) { task ->
+                            TaskPickerItem(
+                                task = task,
+                                selected = task.id == selectedTaskId,
+                                onClick = {
+                                    onSelect(task.id)
+                                    onDismiss()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -469,9 +527,15 @@ private fun TaskPickerItem(
                     )
                 }
             }
-            if (selected) {
-                Text("已选", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            }
+            Text(
+                text = when {
+                    selected -> "已选"
+                    task.isDone -> "已完成"
+                    else -> "选择"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
