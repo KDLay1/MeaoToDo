@@ -86,7 +86,10 @@ internal fun TaskEditorDialog(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             SmallBadge(text = selectedListLabel(listOptions, listId))
                             dueAt?.let { SmallBadge(text = "截止 ${formatDate(it)}") }
                             if (priority > 0) SmallBadge(text = priorityLabel(priority))
@@ -111,8 +114,19 @@ internal fun TaskEditorDialog(
                     }
                 }
 
+                if (!showMoreOptions) {
+                    QuickSettingChips(
+                        listLabel = selectedListLabel(listOptions, listId),
+                        dueLabel = dueAt?.let { formatDate(it) } ?: "添加日期",
+                        priorityLabel = if (priority > 0) priorityLabel(priority) else "普通",
+                        onListClick = { showMoreOptions = true },
+                        onDateClick = { showDatePicker = true },
+                        onPriorityClick = { showMoreOptions = true }
+                    )
+                }
+
                 FilledTonalButton(onClick = { showMoreOptions = !showMoreOptions }) {
-                    Text(if (showMoreOptions) "收起设置" else "设置清单 / 日期 / 优先级")
+                    Text(if (showMoreOptions) "收起设置" else "展开全部设置")
                 }
 
                 if (showMoreOptions) {
@@ -201,6 +215,27 @@ private fun OptionSection(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         content()
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun QuickSettingChips(
+    listLabel: String,
+    dueLabel: String,
+    priorityLabel: String,
+    onListClick: () -> Unit,
+    onDateClick: () -> Unit,
+    onPriorityClick: () -> Unit
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedButton(onClick = onListClick) { Text("清单 · $listLabel") }
+        OutlinedButton(onClick = onDateClick) { Text("日期 · $dueLabel") }
+        OutlinedButton(onClick = onPriorityClick) { Text("优先级 · $priorityLabel") }
     }
 }
 
