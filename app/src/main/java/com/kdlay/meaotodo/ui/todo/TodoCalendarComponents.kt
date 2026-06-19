@@ -24,6 +24,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -137,7 +141,7 @@ private fun WeekCalendarView(
     val weekDays = (0..6).map { addDays(weekStart, it) }
     val weekEnd = addDays(weekStart, 7)
     val weekTasks = tasks.filter { task -> task.dueAt?.let { it >= weekStart && it < weekEnd } == true }
-    val scrollState = rememberScrollState()
+    val horizontalScrollState = rememberScrollState()
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CalendarNavigationHeader(
@@ -155,50 +159,72 @@ private fun WeekCalendarView(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
         ) {
             Column(
-                modifier = Modifier
-                    .horizontalScroll(scrollState)
-                    .verticalScroll(rememberScrollState())
-                    .padding(8.dp),
+                modifier = Modifier.padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("时间", modifier = Modifier.width(50.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    weekDays.forEach { day ->
-                        DayHeaderCell(
-                            day = day,
-                            selectedDate = selectedDate,
-                            tasks = tasksForDay(tasks, day),
-                            onClick = { onSelectedDateChange(day) }
-                        )
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
-                        text = "全天",
-                        modifier = Modifier.width(50.dp).padding(top = 8.dp),
+                        text = "时间",
+                        modifier = Modifier.width(50.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    weekDays.forEach { day ->
-                        val dayTasks = tasksForDay(tasks, day).filterNot { it.hasDueTime }
-                        WeekTaskCell(tasks = dayTasks, onEdit = onEdit, emphasized = dayTasks.isNotEmpty())
+                    Row(
+                        modifier = Modifier.horizontalScroll(horizontalScrollState),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        weekDays.forEach { day ->
+                            DayHeaderCell(
+                                day = day,
+                                selectedDate = selectedDate,
+                                tasks = tasksForDay(tasks, day),
+                                onClick = { onSelectedDateChange(day) }
+                            )
+                        }
                     }
                 }
 
-                (0..23).forEach { hour ->
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(
-                            text = "%02d:00".format(hour),
+                            text = "全天",
                             modifier = Modifier.width(50.dp).padding(top = 8.dp),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        weekDays.forEach { day ->
-                            val hourTasks = tasksForDay(tasks, day)
-                                .filter { it.hasDueTime && hourOf(it.dueAt!!) == hour }
-                                .sortedBy { it.dueAt }
-                            WeekTaskCell(tasks = hourTasks, onEdit = onEdit)
+                        Row(
+                            modifier = Modifier.horizontalScroll(horizontalScrollState),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            weekDays.forEach { day ->
+                                val dayTasks = tasksForDay(tasks, day).filterNot { it.hasDueTime }
+                                WeekTaskCell(tasks = dayTasks, onEdit = onEdit, emphasized = dayTasks.isNotEmpty())
+                            }
+                        }
+                    }
+
+                    (0..23).forEach { hour ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(
+                                text = "%02d:00".format(hour),
+                                modifier = Modifier.width(50.dp).padding(top = 8.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.horizontalScroll(horizontalScrollState),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                weekDays.forEach { day ->
+                                    val hourTasks = tasksForDay(tasks, day)
+                                        .filter { it.hasDueTime && hourOf(it.dueAt!!) == hour }
+                                        .sortedBy { it.dueAt }
+                                    WeekTaskCell(tasks = hourTasks, onEdit = onEdit)
+                                }
+                            }
                         }
                     }
                 }
@@ -299,15 +325,37 @@ private fun MonthCalendarView(
 ) {
     val monthStart = startOfMonth(selectedDate)
     val gridStart = startOfWeek(monthStart)
-    val selectedTasks = tasksForDay(tasks, selectedDate)
+    var detailDay by remember(monthStart) { mutableStateOf<Long?>(null) }
+    val openedDay = detailDay
+
+    if (openedDay != null) {
+        MonthDayTaskPage(
+            day = openedDay,
+            tasks = tasksForDay(tasks, openedDay),
+            onBack = { detailDay = null },
+            onCheckedChange = onCheckedChange,
+            onEdit = onEdit,
+            onRemove = onRemove
+        )
+        return
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CalendarNavigationHeader(
             title = monthTitle(monthStart),
-            subtitle = "本月 ${tasksInMonth(tasks, monthStart).size} 项",
-            onPrevious = { onSelectedDateChange(addMonths(monthStart, -1)) },
-            onToday = { onSelectedDateChange(System.currentTimeMillis()) },
-            onNext = { onSelectedDateChange(addMonths(monthStart, 1)) }
+            subtitle = "本月 ${tasksInMonth(tasks, monthStart).size} 项 · 点按日期查看",
+            onPrevious = {
+                detailDay = null
+                onSelectedDateChange(addMonths(monthStart, -1))
+            },
+            onToday = {
+                detailDay = null
+                onSelectedDateChange(System.currentTimeMillis())
+            },
+            onNext = {
+                detailDay = null
+                onSelectedDateChange(addMonths(monthStart, 1))
+            }
         )
 
         Surface(
@@ -326,12 +374,20 @@ private fun MonthCalendarView(
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         (0..6).forEach { offset ->
                             val day = addDays(gridStart, week * 7 + offset)
+                            val inCurrentMonth = monthOf(day) == monthOf(monthStart)
                             MonthDayCell(
                                 day = day,
                                 monthStart = monthStart,
                                 selectedDate = selectedDate,
                                 tasks = tasksForDay(tasks, day),
-                                onClick = { onSelectedDateChange(day) },
+                                onClick = {
+                                    onSelectedDateChange(day)
+                                    if (inCurrentMonth) {
+                                        detailDay = day
+                                    } else {
+                                        detailDay = null
+                                    }
+                                },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -339,9 +395,32 @@ private fun MonthCalendarView(
                 }
             }
         }
+    }
+}
 
-        Text("${formatDate(selectedDate)} · ${selectedTasks.size} 项", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        if (selectedTasks.isEmpty()) {
+@Composable
+private fun MonthDayTaskPage(
+    day: Long,
+    tasks: List<TaskEntity>,
+    onBack: () -> Unit,
+    onCheckedChange: (TaskEntity, Boolean) -> Unit,
+    onEdit: (TaskEntity) -> Unit,
+    onRemove: (TaskEntity) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CalendarNavPill(text = "‹ 月历", onClick = onBack)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(formatDate(day), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text("${tasks.size} 项", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        if (tasks.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
@@ -350,8 +429,8 @@ private fun MonthCalendarView(
                 Text("这一天没有设置截止日期的任务。", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall)
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 260.dp)) {
-                items(selectedTasks, key = { it.id }) { task ->
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(tasks, key = { it.id }) { task ->
                     TaskRow(
                         task = task,
                         onCheckedChange = { onCheckedChange(task, it) },
