@@ -16,9 +16,13 @@ class AppContainer(context: Context) {
         appContext,
         MeaoDatabase::class.java,
         "meao_todo.db"
-    ).build()
+    ).fallbackToDestructiveMigration().build()
 
-    val taskRepository = TaskRepository(database.taskDao(), database.syncOutboxDao())
+    val taskRepository = TaskRepository(
+        taskDao = database.taskDao(),
+        taskListDao = database.taskListDao(),
+        syncOutboxDao = database.syncOutboxDao()
+    )
     val pomodoroRepository = PomodoroRepository(database.pomodoroDao(), database.syncOutboxDao())
     val ledgerRepository = LedgerRepository(database.ledgerDao(), database.syncOutboxDao())
 
