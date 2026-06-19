@@ -11,12 +11,12 @@
 
 ## M1：Todo MVP
 
-- [ ] Todo ViewModel
-- [ ] 今日任务列表
-- [ ] 新建任务弹窗
-- [ ] 完成/取消完成
-- [ ] 优先级和截止日期
-- [ ] Todo 变更写入 sync_outbox
+- [x] Todo ViewModel
+- [x] 今日任务列表
+- [x] 新建任务弹窗
+- [x] 完成/取消完成
+- [x] 优先级和截止日期
+- [x] Todo 变更写入 sync_outbox
 
 ## M2：番茄钟 MVP
 

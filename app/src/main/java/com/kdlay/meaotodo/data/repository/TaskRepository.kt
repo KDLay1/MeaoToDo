@@ -2,9 +2,13 @@ package com.kdlay.meaotodo.data.repository
 
 import com.kdlay.meaotodo.data.local.dao.SyncOutboxDao
 import com.kdlay.meaotodo.data.local.dao.TaskDao
+import com.kdlay.meaotodo.data.local.entity.DEFAULT_TASK_LIST_ID
 import com.kdlay.meaotodo.data.local.entity.SyncOutboxEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import java.util.UUID
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class TaskRepository(
     private val taskDao: TaskDao,
@@ -12,37 +16,125 @@ class TaskRepository(
 ) {
     val activeTasks = taskDao.observeActiveTasks()
 
-    suspend fun addTask(title: String, note: String = "") {
+    suspend fun addTask(
+        listId: String = DEFAULT_TASK_LIST_ID,
+        title: String,
+        note: String = "",
+        priority: Int = 0,
+        dueAt: Long? = null,
+        hasDueTime: Boolean = false,
+        estimatedPomodoros: Int = 0
+    ) {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         val task = TaskEntity(
             id = id,
-            title = title,
-            note = note,
+            listId = listId.ifBlank { DEFAULT_TASK_LIST_ID },
+            title = title.trim(),
+            note = note.trim(),
+            priority = priority.coerceIn(0, 3),
+            dueAt = dueAt,
+            hasDueTime = dueAt != null && hasDueTime,
+            estimatedPomodoros = estimatedPomodoros.coerceAtLeast(0),
             createdAt = now,
             updatedAt = now
         )
         taskDao.upsert(task)
-        enqueueChange(entityType = "task", entityId = id, operation = "upsert", createdAt = now)
+        enqueueChange(task = task, operation = "upsert", createdAt = now)
     }
 
-    suspend fun setDone(id: String, isDone: Boolean) {
+    suspend fun updateTask(
+        id: String,
+        listId: String,
+        title: String,
+        note: String,
+        priority: Int,
+        dueAt: Long?,
+        hasDueTime: Boolean,
+        estimatedPomodoros: Int
+    ): Boolean {
+        val existing = taskDao.findById(id) ?: return false
+        val now = System.currentTimeMillis()
+        val updated = existing.copy(
+            listId = listId.ifBlank { DEFAULT_TASK_LIST_ID },
+            title = title.trim(),
+            note = note.trim(),
+            priority = priority.coerceIn(0, 3),
+            dueAt = dueAt,
+            hasDueTime = dueAt != null && hasDueTime,
+            estimatedPomodoros = estimatedPomodoros.coerceAtLeast(0),
+            updatedAt = now
+        )
+        taskDao.upsert(updated)
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
+    }
+
+    suspend fun setDone(id: String, isDone: Boolean): Boolean {
         val now = System.currentTimeMillis()
         taskDao.setDone(id = id, isDone = isDone, updatedAt = now)
-        enqueueChange(entityType = "task", entityId = id, operation = "upsert", createdAt = now)
+        val updated = taskDao.findById(id) ?: return false
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
     }
 
-    private suspend fun enqueueChange(entityType: String, entityId: String, operation: String, createdAt: Long) {
-        // 第一版先记录变更索引，后面再替换为完整 JSON 序列化。
+    suspend fun removeTask(id: String): Boolean {
+        val now = System.currentTimeMillis()
+        taskDao.softDelete(id = id, deletedAt = now)
+        val deleted = taskDao.findById(id) ?: return false
+        enqueueChange(task = deleted, operation = "delete", createdAt = now)
+        return true
+    }
+
+    private suspend fun enqueueChange(task: TaskEntity, operation: String, createdAt: Long) {
         syncOutboxDao.enqueue(
             SyncOutboxEntity(
                 id = UUID.randomUUID().toString(),
-                entityType = entityType,
-                entityId = entityId,
+                entityType = "task",
+                entityId = task.id,
                 operation = operation,
-                payloadJson = "{}",
+                payloadJson = json.encodeToString(task.toSyncPayload()),
                 createdAt = createdAt
             )
         )
+    }
+
+    private fun TaskEntity.toSyncPayload(): TaskSyncPayload = TaskSyncPayload(
+        id = id,
+        listId = listId,
+        title = title,
+        note = note,
+        isDone = isDone,
+        priority = priority,
+        dueAt = dueAt,
+        hasDueTime = hasDueTime,
+        estimatedPomodoros = estimatedPomodoros,
+        actualPomodoros = actualPomodoros,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        deletedAt = deletedAt
+    )
+
+    @Serializable
+    private data class TaskSyncPayload(
+        val id: String,
+        val listId: String,
+        val title: String,
+        val note: String,
+        val isDone: Boolean,
+        val priority: Int,
+        val dueAt: Long?,
+        val hasDueTime: Boolean,
+        val estimatedPomodoros: Int,
+        val actualPomodoros: Int,
+        val createdAt: Long,
+        val updatedAt: Long,
+        val deletedAt: Long?
+    )
+
+    private companion object {
+        val json = Json {
+            encodeDefaults = true
+        }
     }
 }
