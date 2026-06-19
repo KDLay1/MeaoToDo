@@ -1,0 +1,32 @@
+name: Android Compile Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop/**
+  push:
+    branches:
+      - develop/**
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Assemble debug
+        run: ./gradlew assembleDebug
+
+      - name: Run debug unit tests
+        run: ./gradlew testDebugUnitTest
