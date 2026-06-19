@@ -56,6 +56,7 @@ fun PomodoroScreen(
     var selectedDurationMinutes by rememberSaveable { mutableIntStateOf(25) }
     var selectedTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     var showTaskPicker by remember { mutableStateOf(false) }
+    var showDurationWheel by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
@@ -91,6 +92,7 @@ fun PomodoroScreen(
                     onDurationChange = { selectedDurationMinutes = it },
                     onPickTask = { showTaskPicker = true },
                     onClearTask = { selectedTaskId = null },
+                    onOpenDurationWheel = { showDurationWheel = true },
                     onStart = { viewModel.start(selectedTaskId, selectedDurationMinutes) },
                     modifier = Modifier.weight(1f)
                 )
@@ -114,6 +116,17 @@ fun PomodoroScreen(
             onSelect = { selectedTaskId = it },
             onClear = { selectedTaskId = null },
             onDismiss = { showTaskPicker = false }
+        )
+    }
+
+    if (showDurationWheel) {
+        DurationWheelDialog(
+            initialDurationMinutes = selectedDurationMinutes,
+            onDismiss = { showDurationWheel = false },
+            onConfirm = { duration ->
+                selectedDurationMinutes = duration
+                showDurationWheel = false
+            }
         )
     }
 }
@@ -170,12 +183,12 @@ private fun IdlePomodoroPanel(
     onDurationChange: (Int) -> Unit,
     onPickTask: () -> Unit,
     onClearTask: () -> Unit,
+    onOpenDurationWheel: () -> Unit,
     onStart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val selectedTask = tasks.firstOrNull { it.id == selectedTaskId }
     val quickDurations = listOf(15, 25, 45, 60, 90)
-    val wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120)
     val scrollState = rememberScrollState()
 
     Column(
@@ -223,6 +236,9 @@ private fun IdlePomodoroPanel(
                         )
                     }
                 }
+                OutlinedButton(onClick = onOpenDurationWheel) {
+                    Text("滚轮微调")
+                }
             }
         }
 
@@ -231,37 +247,6 @@ private fun IdlePomodoroPanel(
             onClick = onStart
         ) {
             Text("开始专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("滚轮微调", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Text(
-                    text = "快捷时长不够用时，再滑动这里。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                WheelPickerColumn(
-                    title = "分钟",
-                    values = wheelDurations,
-                    selectedValue = selectedDurationMinutes,
-                    onCenteredValueChange = onDurationChange,
-                    itemLabel = { it.toString() },
-                    columnWidth = 112.dp,
-                    itemWidth = 86.dp,
-                    viewportHeight = 150.dp
-                )
-            }
         }
     }
 }
@@ -423,6 +408,66 @@ private fun DurationChip(
             fontWeight = FontWeight.SemiBold
         )
     }
+}
+
+@Composable
+private fun DurationWheelDialog(
+    initialDurationMinutes: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var draftDuration by remember { mutableIntStateOf(initialDurationMinutes) }
+    val wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("滚轮微调", fontWeight = FontWeight.Bold)
+                Text(
+                    text = "滚轮只在点击确定后写入时长，避免覆盖快捷按钮。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
+                        text = "$draftDuration min",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                WheelPickerColumn(
+                    title = "分钟",
+                    values = wheelDurations,
+                    selectedValue = draftDuration,
+                    onCenteredValueChange = { draftDuration = it },
+                    itemLabel = { it.toString() },
+                    columnWidth = 112.dp,
+                    itemWidth = 86.dp,
+                    viewportHeight = 180.dp
+                )
+            }
+        },
+        confirmButton = {
+            FilledTonalButton(onClick = { onConfirm(draftDuration) }) { Text("确定") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }
 
 @Composable
