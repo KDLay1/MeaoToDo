@@ -6,6 +6,8 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "pomodoro_sessions")
 data class PomodoroSessionEntity(
     @PrimaryKey val id: String,
+    val runId: String? = null,
+    val roundIndex: Int = 1,
     val taskId: String? = null,
     val titleSnapshot: String? = null,
     val type: String,
