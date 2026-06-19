@@ -18,10 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,27 +40,49 @@ internal fun DisplayModeSwitcher(
     onDisplayModeChange: (TodoDisplayMode) -> Unit,
     onCalendarModeChange: (TodoCalendarMode) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TodoDisplayMode.entries.forEach { mode ->
-                if (displayMode == mode) {
-                    FilledTonalButton(onClick = { onDisplayModeChange(mode) }) { Text(mode.label) }
-                } else {
-                    OutlinedButton(onClick = { onDisplayModeChange(mode) }) { Text(mode.label) }
-                }
-            }
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        TodoDisplayMode.entries.forEach { mode ->
+            CompactModePill(
+                text = mode.label,
+                selected = displayMode == mode,
+                onClick = { onDisplayModeChange(mode) }
+            )
         }
         if (displayMode == TodoDisplayMode.Calendar) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TodoCalendarMode.entries.forEach { mode ->
-                    if (calendarMode == mode) {
-                        FilledTonalButton(onClick = { onCalendarModeChange(mode) }) { Text(mode.label) }
-                    } else {
-                        OutlinedButton(onClick = { onCalendarModeChange(mode) }) { Text(mode.label) }
-                    }
-                }
+            TodoCalendarMode.entries.forEach { mode ->
+                CompactModePill(
+                    text = mode.label,
+                    selected = calendarMode == mode,
+                    onClick = { onCalendarModeChange(mode) }
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun CompactModePill(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.36f))
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -79,7 +100,7 @@ internal fun TodoCalendarContent(
     modifier: Modifier = Modifier
 ) {
     val calendarTasks = groups.tasksFor(selectedList.id).filter { it.dueAt != null }
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (calendarMode) {
             TodoCalendarMode.Week -> WeekCalendarView(
                 tasks = calendarTasks,
@@ -118,7 +139,7 @@ private fun WeekCalendarView(
     val weekTasks = tasks.filter { task -> task.dueAt?.let { it >= weekStart && it < weekEnd } == true }
     val scrollState = rememberScrollState()
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CalendarNavigationHeader(
             title = "${formatDate(weekStart)} - ${formatDate(addDays(weekStart, 6))}",
             subtitle = "本周 ${weekTasks.size} 项 · 未完成 ${weekTasks.count { !it.isDone }} 项",
@@ -129,19 +150,19 @@ private fun WeekCalendarView(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
         ) {
             Column(
                 modifier = Modifier
                     .horizontalScroll(scrollState)
                     .verticalScroll(rememberScrollState())
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("时间", modifier = Modifier.width(54.dp), style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("时间", modifier = Modifier.width(50.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     weekDays.forEach { day ->
                         DayHeaderCell(
                             day = day,
@@ -152,10 +173,10 @@ private fun WeekCalendarView(
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
                         text = "全天",
-                        modifier = Modifier.width(54.dp).padding(top = 8.dp),
+                        modifier = Modifier.width(50.dp).padding(top = 8.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -166,10 +187,10 @@ private fun WeekCalendarView(
                 }
 
                 (0..23).forEach { hour ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(
                             text = "%02d:00".format(hour),
-                            modifier = Modifier.width(54.dp).padding(top = 8.dp),
+                            modifier = Modifier.width(50.dp).padding(top = 8.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -198,7 +219,7 @@ private fun DayHeaderCell(
     val container = when {
         selected -> MaterialTheme.colorScheme.primaryContainer
         today -> MaterialTheme.colorScheme.secondaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
     }
     val content = when {
         selected -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -207,16 +228,22 @@ private fun DayHeaderCell(
     }
 
     Surface(
-        modifier = Modifier.width(108.dp).clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.width(100.dp).clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
         color = container,
         contentColor = content,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
     ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(weekdayLabel(day), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-            Text(dayOfMonth(day).toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("${tasks.size} 项", style = MaterialTheme.typography.labelSmall)
+        Row(
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(weekdayLabel(day), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                Text(dayOfMonth(day).toString(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            }
+            Text("${tasks.size}", style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -228,12 +255,12 @@ private fun WeekTaskCell(
     emphasized: Boolean = false
 ) {
     Surface(
-        modifier = Modifier.width(108.dp).heightIn(min = 58.dp),
+        modifier = Modifier.width(100.dp).heightIn(min = 52.dp),
         shape = MaterialTheme.shapes.medium,
-        color = if (emphasized) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.62f) else MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        color = if (emphasized) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.56f) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
     ) {
-        Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             if (tasks.isEmpty()) {
                 Text(" ", style = MaterialTheme.typography.labelSmall)
             } else {
@@ -274,10 +301,10 @@ private fun MonthCalendarView(
     val gridStart = startOfWeek(monthStart)
     val selectedTasks = tasksForDay(tasks, selectedDate)
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CalendarNavigationHeader(
             title = monthTitle(monthStart),
-            subtitle = "本月 ${tasksInMonth(tasks, monthStart).size} 项 · 点按日期查看任务",
+            subtitle = "本月 ${tasksInMonth(tasks, monthStart).size} 项",
             onPrevious = { onSelectedDateChange(addMonths(monthStart, -1)) },
             onToday = { onSelectedDateChange(System.currentTimeMillis()) },
             onNext = { onSelectedDateChange(addMonths(monthStart, 1)) }
@@ -285,11 +312,11 @@ private fun MonthCalendarView(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
         ) {
-            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("一", "二", "三", "四", "五", "六", "日").forEach {
                         Text(it, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -320,7 +347,7 @@ private fun MonthCalendarView(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
             ) {
-                Text("这一天没有设置截止日期的任务。", modifier = Modifier.padding(18.dp))
+                Text("这一天没有设置截止日期的任务。", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall)
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 260.dp)) {
@@ -351,13 +378,17 @@ private fun MonthDayCell(
     val completed = tasks.isNotEmpty() && tasks.all { it.isDone }
 
     Surface(
-        modifier = modifier.heightIn(min = 72.dp).clickable(onClick = onClick),
+        modifier = modifier.heightIn(min = 66.dp).clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium,
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (inMonth) 0.48f else 0.2f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (selected) 0.3f else 0.14f))
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (inMonth) 0.44f else 0.18f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (selected) 0.28f else 0.12f))
     ) {
-        Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = dayOfMonth(day).toString(),
                     style = MaterialTheme.typography.labelMedium,
@@ -407,10 +438,10 @@ private fun YearCalendarView(
     onCalendarModeChange: (TodoCalendarMode) -> Unit
 ) {
     val year = yearOf(selectedDate)
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CalendarNavigationHeader(
             title = "${year} 年",
-            subtitle = "全年 ${tasksInYear(tasks, year).size} 项 · 点击月份进入月视图",
+            subtitle = "全年 ${tasksInYear(tasks, year).size} 项",
             onPrevious = { onSelectedDateChange(startOfYear(year - 1)) },
             onToday = { onSelectedDateChange(System.currentTimeMillis()) },
             onNext = { onSelectedDateChange(startOfYear(year + 1)) }
@@ -452,11 +483,15 @@ private fun YearMonthPreview(
         modifier = modifier.clickable(onClick = onClick),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${monthOf(monthStart) + 1}月", fontWeight = FontWeight.SemiBold)
+        Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("${monthOf(monthStart) + 1}月", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 Text("${monthTasks.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
             (0..5).forEach { week ->
@@ -490,26 +525,41 @@ private fun CalendarNavigationHeader(
     onToday: () -> Unit,
     onNext: () -> Unit
 ) {
-    Surface(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedButton(onClick = onPrevious) { Text("‹") }
-                OutlinedButton(onClick = onToday) { Text("今天") }
-                OutlinedButton(onClick = onNext) { Text("›") }
-            }
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            CalendarNavPill(text = "‹", onClick = onPrevious)
+            CalendarNavPill(text = "今天", onClick = onToday)
+            CalendarNavPill(text = "›", onClick = onNext)
+        }
+    }
+}
+
+@Composable
+private fun CalendarNavPill(text: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.32f))
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
