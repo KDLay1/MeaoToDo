@@ -14,6 +14,7 @@ data class TaskEntity(
     val isDone: Boolean = false,
     val priority: Int = 0,
     val dueAt: Long? = null,
+    val hasDueTime: Boolean = false,
     val estimatedPomodoros: Int = 0,
     val actualPomodoros: Int = 0,
     val createdAt: Long,
