@@ -5,8 +5,8 @@ import androidx.room.Room
 import com.kdlay.meaotodo.data.local.MeaoDatabase
 import com.kdlay.meaotodo.data.repository.LedgerRepository
 import com.kdlay.meaotodo.data.repository.PomodoroRepository
+import com.kdlay.meaotodo.data.repository.TaskListRepository
 import com.kdlay.meaotodo.data.repository.TaskRepository
-import com.kdlay.meaotodo.data.repository.TodoRepository
 import com.kdlay.meaotodo.sync.AndroidNsdWifiDiscoveryService
 import com.kdlay.meaotodo.sync.WifiSyncGateway
 
@@ -20,11 +20,7 @@ class AppContainer(context: Context) {
     ).fallbackToDestructiveMigration().build()
 
     val taskRepository = TaskRepository(database.taskDao(), database.syncOutboxDao())
-    val todoRepository = TodoRepository(
-        taskDao = database.taskDao(),
-        taskListDao = database.taskListDao(),
-        syncOutboxDao = database.syncOutboxDao()
-    )
+    val taskListRepository = TaskListRepository(database.taskListDao(), database.syncOutboxDao())
     val pomodoroRepository = PomodoroRepository(database.pomodoroDao(), database.syncOutboxDao())
     val ledgerRepository = LedgerRepository(database.ledgerDao(), database.syncOutboxDao())
 
