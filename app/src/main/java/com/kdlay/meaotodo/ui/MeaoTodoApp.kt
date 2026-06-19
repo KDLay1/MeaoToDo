@@ -41,6 +41,8 @@ private enum class MainTab(val label: String, val icon: String) {
     Board("看板", "板")
 }
 
+private val mainTabs = MainTab.entries.toList()
+
 @Composable
 fun MeaoTodoApp(todoViewModel: TodoViewModel) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
@@ -52,7 +54,7 @@ fun MeaoTodoApp(todoViewModel: TodoViewModel) {
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 0.dp
             ) {
-                MainTab.entries.forEach { tab ->
+                mainTabs.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
@@ -160,33 +162,15 @@ private fun BoardScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DashboardCard(title: String, content: String, caption: String) {
+private fun DashboardCard(title: String, content: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(content, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun BoardCard(title: String, content: String, meta: String) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        color = Color(0xFF1B1D24),
-        border = BorderStroke(1.dp, Color(0xFF353946))
-    ) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, color = Color(0xFFC9C4D0), fontWeight = FontWeight.SemiBold)
-            Text(content, color = Color(0xFFF1EEF6), fontSize = 36.sp, fontWeight = FontWeight.Bold)
-            Text(meta, color = Color(0xFFACBFEB))
+            Text(content, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
