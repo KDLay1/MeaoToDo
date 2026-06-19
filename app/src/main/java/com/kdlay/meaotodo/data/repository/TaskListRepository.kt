@@ -6,6 +6,7 @@ import com.kdlay.meaotodo.data.local.entity.DEFAULT_TASK_LIST_ID
 import com.kdlay.meaotodo.data.local.entity.SyncOutboxEntity
 import com.kdlay.meaotodo.data.local.entity.TaskListEntity
 import java.util.UUID
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -15,6 +16,7 @@ class TaskListRepository(
     private val syncOutboxDao: SyncOutboxDao
 ) {
     val activeTaskLists = taskListDao.observeActiveLists()
+        .map { lists -> lists.filterNot { it.id == DEFAULT_TASK_LIST_ID } }
 
     suspend fun ensureDefaultList() {
         val existing = taskListDao.findById(DEFAULT_TASK_LIST_ID)
