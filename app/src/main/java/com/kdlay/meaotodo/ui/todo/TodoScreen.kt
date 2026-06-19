@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,9 +31,15 @@ fun TodoScreen(
     val customLists by viewModel.taskLists.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedListId by rememberSaveable { mutableStateOf(SMART_ALL) }
+    var displayModeName by rememberSaveable { mutableStateOf(TodoDisplayMode.List.name) }
+    var calendarModeName by rememberSaveable { mutableStateOf(TodoCalendarMode.Week.name) }
+    var selectedDate by rememberSaveable { mutableLongStateOf(startOfDay(System.currentTimeMillis())) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddListDialog by remember { mutableStateOf(false) }
+
+    val displayMode = remember(displayModeName) { TodoDisplayMode.valueOf(displayModeName) }
+    val calendarMode = remember(calendarModeName) { TodoCalendarMode.valueOf(calendarModeName) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
@@ -76,15 +83,36 @@ fun TodoScreen(
                 onSelect = { selectedListId = it },
                 onAddList = { showAddListDialog = true }
             )
-            QuickAddBar(onClick = { showAddTaskDialog = true })
-            TodoTaskList(
-                modifier = Modifier.weight(1f),
-                groups = groups,
-                selectedList = selectedList,
-                onCheckedChange = viewModel::setDone,
-                onEdit = { editingTask = it },
-                onRemove = viewModel::removeTask
+            DisplayModeSwitcher(
+                displayMode = displayMode,
+                calendarMode = calendarMode,
+                onDisplayModeChange = { displayModeName = it.name },
+                onCalendarModeChange = { calendarModeName = it.name }
             )
+            QuickAddBar(onClick = { showAddTaskDialog = true })
+            if (displayMode == TodoDisplayMode.List) {
+                TodoTaskList(
+                    modifier = Modifier.weight(1f),
+                    groups = groups,
+                    selectedList = selectedList,
+                    onCheckedChange = viewModel::setDone,
+                    onEdit = { editingTask = it },
+                    onRemove = viewModel::removeTask
+                )
+            } else {
+                TodoCalendarContent(
+                    modifier = Modifier.weight(1f),
+                    groups = groups,
+                    selectedList = selectedList,
+                    calendarMode = calendarMode,
+                    selectedDate = selectedDate,
+                    onSelectedDateChange = { selectedDate = startOfDay(it) },
+                    onCalendarModeChange = { calendarModeName = it.name },
+                    onCheckedChange = viewModel::setDone,
+                    onEdit = { editingTask = it },
+                    onRemove = viewModel::removeTask
+                )
+            }
         }
     }
 
@@ -95,10 +123,11 @@ fun TodoScreen(
             task = null,
             listOptions = listOptions.taskListOptions(),
             initialListId = initialListId,
-            initialDueAt = defaultDueAtFor(selectedList.id),
+            initialDueAt = defaultDueAtFor(selectedList.id, displayMode, selectedDate),
+            initialHasDueTime = false,
             onDismiss = { showAddTaskDialog = false },
-            onSave = { listId, taskTitle, note, priority, dueAt, estimatedPomodoros ->
-                viewModel.addTask(listId, taskTitle, note, priority, dueAt, estimatedPomodoros)
+            onSave = { listId, taskTitle, note, priority, dueAt, hasDueTime, estimatedPomodoros ->
+                viewModel.addTask(listId, taskTitle, note, priority, dueAt, hasDueTime, estimatedPomodoros)
                 showAddTaskDialog = false
             }
         )
@@ -121,9 +150,10 @@ fun TodoScreen(
             listOptions = listOptions.taskListOptions(),
             initialListId = task.listId,
             initialDueAt = task.dueAt,
+            initialHasDueTime = task.hasDueTime,
             onDismiss = { editingTask = null },
-            onSave = { listId, taskTitle, note, priority, dueAt, estimatedPomodoros ->
-                viewModel.updateTask(task, listId, taskTitle, note, priority, dueAt, estimatedPomodoros)
+            onSave = { listId, taskTitle, note, priority, dueAt, hasDueTime, estimatedPomodoros ->
+                viewModel.updateTask(task, listId, taskTitle, note, priority, dueAt, hasDueTime, estimatedPomodoros)
                 editingTask = null
             }
         )
