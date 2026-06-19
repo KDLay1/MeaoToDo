@@ -3,12 +3,16 @@ package com.kdlay.meaotodo.ui.todo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -18,7 +22,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 
@@ -37,6 +43,7 @@ fun TodoScreen(
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddListDialog by remember { mutableStateOf(false) }
+    var showListPickerDialog by remember { mutableStateOf(false) }
 
     val displayMode = remember(displayModeName) { TodoDisplayMode.valueOf(displayModeName) }
     val calendarMode = remember(calendarModeName) { TodoCalendarMode.valueOf(calendarModeName) }
@@ -72,48 +79,52 @@ fun TodoScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            TodoHeader(
-                tasks = tasks,
-                selectedList = selectedList,
-                selectedTasks = selectedTasks
-            )
-            ListSwitcher(
-                listOptions = listOptions,
-                selectedListId = selectedList.id,
-                onSelect = { selectedListId = it },
-                onAddList = { showAddListDialog = true }
-            )
-            DisplayModeSwitcher(
-                displayMode = displayMode,
-                calendarMode = calendarMode,
-                onDisplayModeChange = { displayModeName = it.name },
-                onCalendarModeChange = { calendarModeName = it.name }
-            )
-            QuickAddBar(onClick = { showAddTaskDialog = true })
             if (displayMode == TodoDisplayMode.List) {
-                TodoTaskList(
-                    modifier = Modifier.weight(1f),
+                TodoListModeScreen(
+                    tasks = tasks,
                     groups = groups,
                     selectedList = selectedList,
+                    selectedTasks = selectedTasks,
+                    displayMode = displayMode,
+                    calendarMode = calendarMode,
+                    onPickList = { showListPickerDialog = true },
+                    onDisplayModeChange = { displayModeName = it.name },
+                    onCalendarModeChange = { calendarModeName = it.name },
+                    onAddTask = { showAddTaskDialog = true },
                     onCheckedChange = viewModel::setDone,
                     onEdit = { editingTask = it },
-                    onRemove = viewModel::removeTask
+                    onRemove = viewModel::removeTask,
+                    modifier = Modifier.weight(1f)
                 )
             } else {
-                TodoCalendarContent(
-                    modifier = Modifier.weight(1f),
+                TodoCalendarModeScreen(
                     groups = groups,
                     selectedList = selectedList,
+                    displayMode = displayMode,
                     calendarMode = calendarMode,
                     selectedDate = selectedDate,
-                    onSelectedDateChange = { selectedDate = startOfDay(it) },
+                    onPickList = { showListPickerDialog = true },
+                    onAddTask = { showAddTaskDialog = true },
+                    onDisplayModeChange = { displayModeName = it.name },
                     onCalendarModeChange = { calendarModeName = it.name },
+                    onSelectedDateChange = { selectedDate = startOfDay(it) },
                     onCheckedChange = viewModel::setDone,
                     onEdit = { editingTask = it },
-                    onRemove = viewModel::removeTask
+                    onRemove = viewModel::removeTask,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
+    }
+
+    if (showListPickerDialog) {
+        TodoListPickerDialog(
+            listOptions = listOptions,
+            selectedListId = selectedList.id,
+            onSelect = { selectedListId = it },
+            onAddList = { showAddListDialog = true },
+            onDismiss = { showListPickerDialog = false }
+        )
     }
 
     if (showAddTaskDialog) {
@@ -157,5 +168,119 @@ fun TodoScreen(
                 editingTask = null
             }
         )
+    }
+}
+
+@Composable
+private fun TodoListModeScreen(
+    tasks: List<TaskEntity>,
+    groups: TodoGroups,
+    selectedList: TodoListOption,
+    selectedTasks: List<TaskEntity>,
+    displayMode: TodoDisplayMode,
+    calendarMode: TodoCalendarMode,
+    onPickList: () -> Unit,
+    onDisplayModeChange: (TodoDisplayMode) -> Unit,
+    onCalendarModeChange: (TodoCalendarMode) -> Unit,
+    onAddTask: () -> Unit,
+    onCheckedChange: (TaskEntity, Boolean) -> Unit,
+    onEdit: (TaskEntity) -> Unit,
+    onRemove: (TaskEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        TodoHeader(
+            tasks = tasks,
+            selectedList = selectedList,
+            selectedTasks = selectedTasks
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TodoListPickerButton(selectedList = selectedList, onClick = onPickList)
+        }
+        DisplayModeSwitcher(
+            displayMode = displayMode,
+            calendarMode = calendarMode,
+            onDisplayModeChange = onDisplayModeChange,
+            onCalendarModeChange = onCalendarModeChange
+        )
+        QuickAddBar(onClick = onAddTask)
+        TodoTaskList(
+            modifier = Modifier.weight(1f),
+            groups = groups,
+            selectedList = selectedList,
+            onCheckedChange = onCheckedChange,
+            onEdit = onEdit,
+            onRemove = onRemove
+        )
+    }
+}
+
+@Composable
+private fun TodoCalendarModeScreen(
+    groups: TodoGroups,
+    selectedList: TodoListOption,
+    displayMode: TodoDisplayMode,
+    calendarMode: TodoCalendarMode,
+    selectedDate: Long,
+    onPickList: () -> Unit,
+    onAddTask: () -> Unit,
+    onDisplayModeChange: (TodoDisplayMode) -> Unit,
+    onCalendarModeChange: (TodoCalendarMode) -> Unit,
+    onSelectedDateChange: (Long) -> Unit,
+    onCheckedChange: (TaskEntity, Boolean) -> Unit,
+    onEdit: (TaskEntity) -> Unit,
+    onRemove: (TaskEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        CalendarTopBar(
+            selectedList = selectedList,
+            onPickList = onPickList,
+            onAddTask = onAddTask
+        )
+        DisplayModeSwitcher(
+            displayMode = displayMode,
+            calendarMode = calendarMode,
+            onDisplayModeChange = onDisplayModeChange,
+            onCalendarModeChange = onCalendarModeChange
+        )
+        TodoCalendarContent(
+            modifier = Modifier.weight(1f),
+            groups = groups,
+            selectedList = selectedList,
+            calendarMode = calendarMode,
+            selectedDate = selectedDate,
+            onSelectedDateChange = onSelectedDateChange,
+            onCalendarModeChange = onCalendarModeChange,
+            onCheckedChange = onCheckedChange,
+            onEdit = onEdit,
+            onRemove = onRemove
+        )
+    }
+}
+
+@Composable
+private fun CalendarTopBar(
+    selectedList: TodoListOption,
+    onPickList: () -> Unit,
+    onAddTask: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Todo 日历", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("按时间查看任务", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TodoListPickerButton(selectedList = selectedList, onClick = onPickList)
+            FilledTonalButton(onClick = onAddTask) { Text("＋") }
+        }
     }
 }
