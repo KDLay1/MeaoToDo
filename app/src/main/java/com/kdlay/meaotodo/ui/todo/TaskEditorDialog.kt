@@ -60,6 +60,7 @@ internal fun TaskEditorDialog(
     var estimatedPomodoros by remember(task?.id) { mutableIntStateOf(task?.estimatedPomodoros ?: 0) }
     var showMoreOptions by remember { mutableStateOf(!isNewTask) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimeWheel by remember { mutableStateOf(false) }
 
     fun updateDueTime(hour: Int = dueHour, minute: Int = dueMinute, enabled: Boolean = hasDueTime) {
         val currentDueAt = dueAt ?: return
@@ -170,29 +171,17 @@ internal fun TaskEditorDialog(
                         OptionSection(title = "截止时间") {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (hasDueTime) {
-                                    FilledTonalButton(onClick = { updateDueTime(enabled = false) }) { Text("无具体时间") }
+                                    FilledTonalButton(onClick = { showTimeWheel = true }) {
+                                        Text("%02d:%02d".format(dueHour, dueMinute))
+                                    }
+                                    TextButton(onClick = { updateDueTime(enabled = false) }) {
+                                        Text("清除时间")
+                                    }
                                 } else {
-                                    OutlinedButton(onClick = { updateDueTime(enabled = true) }) { Text("设置具体时间") }
+                                    OutlinedButton(onClick = { showTimeWheel = true }) {
+                                        Text("设置截止时间")
+                                    }
                                 }
-                                if (hasDueTime) {
-                                    Text("%02d:%02d".format(dueHour, dueMinute), modifier = Modifier.padding(top = 12.dp))
-                                }
-                            }
-                            if (hasDueTime) {
-                                Text("小时", style = MaterialTheme.typography.labelSmall)
-                                IntChoiceButtonGroup(
-                                    values = (0..23).toList(),
-                                    selectedValue = dueHour,
-                                    label = { "%02d".format(it) },
-                                    onSelect = { updateDueTime(hour = it, enabled = true) }
-                                )
-                                Text("分钟", style = MaterialTheme.typography.labelSmall)
-                                IntChoiceButtonGroup(
-                                    values = listOf(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55),
-                                    selectedValue = dueMinute,
-                                    label = { "%02d".format(it) },
-                                    onSelect = { updateDueTime(minute = it, enabled = true) }
-                                )
                             }
                         }
                     }
@@ -254,6 +243,18 @@ internal fun TaskEditorDialog(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (showTimeWheel) {
+        TimeWheelDialog(
+            initialHour = dueHour,
+            initialMinute = dueMinute,
+            onDismiss = { showTimeWheel = false },
+            onConfirm = { hour, minute ->
+                updateDueTime(hour = hour, minute = minute, enabled = true)
+                showTimeWheel = false
+            }
+        )
     }
 }
 
