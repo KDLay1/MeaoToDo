@@ -122,7 +122,6 @@ class TaskRepository(
     private companion object {
         val json = Json {
             encodeDefaults = true
-            explicitNulls = true
         }
     }
 }
