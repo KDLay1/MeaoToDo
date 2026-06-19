@@ -27,16 +27,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kdlay.meaotodo.ui.todo.TodoScreen
+import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
 private enum class MainTab(val label: String) {
-    Today("Today"),
-    Timer("Timer"),
-    Ledger("Ledger"),
-    Board("Board")
+    Today("今日"),
+    Timer("番茄钟"),
+    Ledger("账本"),
+    Board("看板")
 }
 
 @Composable
-fun MeaoTodoApp() {
+fun MeaoTodoApp(todoViewModel: TodoViewModel) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
 
     Scaffold(
@@ -54,26 +56,14 @@ fun MeaoTodoApp() {
         }
     ) { innerPadding ->
         when (selectedTab) {
-            MainTab.Today -> TodayScreen(Modifier.padding(innerPadding))
+            MainTab.Today -> TodoScreen(
+                viewModel = todoViewModel,
+                modifier = Modifier.padding(innerPadding)
+            )
             MainTab.Timer -> TimerScreen(Modifier.padding(innerPadding))
             MainTab.Ledger -> LedgerScreen(Modifier.padding(innerPadding))
             MainTab.Board -> BoardScreen(Modifier.padding(innerPadding))
         }
-    }
-}
-
-@Composable
-private fun TodayScreen(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text("MeaoToDo", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Text("Local-first Todo, Pomodoro and Ledger for a two-phone workflow.")
-        DashboardCard(title = "Today", content = "No tasks yet. Next step: implement Room-backed Todo list.")
-        DashboardCard(title = "Wi‑Fi Sync", content = "Discovery and pairing interfaces are prepared under sync/.")
     }
 }
 
@@ -88,7 +78,7 @@ private fun TimerScreen(modifier: Modifier = Modifier) {
     ) {
         Text("25:00", fontSize = 72.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
-        Text("Pomodoro state machine will be implemented here.")
+        Text("番茄钟状态机将在这里实现。")
     }
 }
 
@@ -100,9 +90,9 @@ private fun LedgerScreen(modifier: Modifier = Modifier) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Ledger", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        DashboardCard(title = "Today", content = "¥0.00")
-        DashboardCard(title = "Month", content = "Budget and category statistics will appear here.")
+        Text("账本", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+        DashboardCard(title = "今日", content = "¥0.00")
+        DashboardCard(title = "本月", content = "预算和分类统计将在这里显示。")
     }
 }
 
@@ -115,12 +105,12 @@ private fun BoardScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Board Mode", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("看板模式", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text("Wi‑Fi")
         }
-        DashboardCard(title = "Current Focus", content = "No active task")
-        DashboardCard(title = "Pomodoro", content = "25:00")
-        DashboardCard(title = "Today Spending", content = "¥0.00")
+        DashboardCard(title = "当前专注", content = "暂无进行中的任务")
+        DashboardCard(title = "番茄钟", content = "25:00")
+        DashboardCard(title = "今日支出", content = "¥0.00")
     }
 }
 

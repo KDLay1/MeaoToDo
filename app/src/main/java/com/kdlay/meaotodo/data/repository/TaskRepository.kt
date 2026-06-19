@@ -12,13 +12,20 @@ class TaskRepository(
 ) {
     val activeTasks = taskDao.observeActiveTasks()
 
-    suspend fun addTask(title: String, note: String = "") {
+    suspend fun addTask(
+        title: String,
+        note: String = "",
+        priority: Int = 0,
+        dueAt: Long? = null
+    ) {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         val task = TaskEntity(
             id = id,
-            title = title,
-            note = note,
+            title = title.trim(),
+            note = note.trim(),
+            priority = priority,
+            dueAt = dueAt,
             createdAt = now,
             updatedAt = now
         )
