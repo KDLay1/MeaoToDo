@@ -49,21 +49,25 @@ fun MeaoTodoApp(
     pomodoroViewModel: PomodoroViewModel
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
+    var isTimerImmersive by rememberSaveable { mutableStateOf(false) }
+    val hideBottomBar = selectedTab == MainTab.Timer && isTimerImmersive
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
-            ) {
-                mainTabs.forEach { tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        icon = { Text(tab.icon, fontWeight = FontWeight.SemiBold) },
-                        label = { Text(tab.label) }
-                    )
+            if (!hideBottomBar) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
+                ) {
+                    mainTabs.forEach { tab ->
+                        NavigationBarItem(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            icon = { Text(tab.icon, fontWeight = FontWeight.SemiBold) },
+                            label = { Text(tab.label) }
+                        )
+                    }
                 }
             }
         }
@@ -76,7 +80,10 @@ fun MeaoTodoApp(
         ) {
             when (selectedTab) {
                 MainTab.Today -> TodoScreen(viewModel = todoViewModel)
-                MainTab.Timer -> PomodoroScreen(viewModel = pomodoroViewModel)
+                MainTab.Timer -> PomodoroScreen(
+                    viewModel = pomodoroViewModel,
+                    onImmersiveModeChange = { isTimerImmersive = it }
+                )
                 MainTab.Ledger -> LedgerScreen()
                 MainTab.Board -> BoardScreen()
             }
