@@ -66,7 +66,12 @@ class PomodoroViewModel(
         }
     }
 
-    fun start(taskId: String?, durationMinutes: Int, targetFocusCount: Int) {
+    fun start(
+        taskId: String?,
+        durationMinutes: Int,
+        breakDurationMinutes: Int,
+        targetFocusCount: Int
+    ) {
         viewModelScope.launch {
             val cleanTaskId = taskId?.takeIf { it.isNotBlank() }
             val task = cleanTaskId?.let { id -> tasksState.value.firstOrNull { it.id == id } }
@@ -74,7 +79,7 @@ class PomodoroViewModel(
                 taskId = task?.id,
                 titleSnapshot = task?.title,
                 focusDurationSeconds = durationMinutes.coerceAtLeast(1) * 60,
-                breakDurationSeconds = PomodoroRepository.DEFAULT_BREAK_DURATION_SECONDS,
+                breakDurationSeconds = breakDurationMinutes.coerceIn(1, 120) * 60,
                 targetFocusCount = targetFocusCount.coerceIn(1, 12)
             )
             if (!started) {
@@ -158,14 +163,14 @@ data class PomodoroUiState(
 
     val phaseTitle: String
         get() = when {
-            activeSession == null -> "Ready"
+            activeSession == null -> "准备开始"
             isBreak -> "休息中"
             else -> "专注中"
         }
 
     val statusLabel: String
         get() = when {
-            activeSession == null -> "Ready"
+            activeSession == null -> "准备开始"
             isPaused && isBreak -> "休息暂停"
             isPaused -> "专注暂停"
             isBreak -> "休息中"
@@ -191,10 +196,11 @@ data class PomodoroUiState(
         get() {
             val session = activeSession ?: return ""
             val run = activeRun ?: return ""
+            val breakMinutes = (run.breakDurationSeconds / 60).coerceAtLeast(1)
             return if (session.type == PomodoroRepository.TYPE_BREAK) {
                 if (run.completedFocusCount < run.targetFocusCount) "下一轮：第 ${run.completedFocusCount + 1} 个番茄" else "休息结束后完成本轮"
             } else {
-                "结束后休息 5 min"
+                "结束后休息 $breakMinutes 分钟"
             }
         }
 

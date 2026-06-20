@@ -1,16 +1,26 @@
 package com.kdlay.meaotodo.ui.timer
 
+import android.content.res.Configuration
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -28,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,19 +60,43 @@ import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.ui.components.WheelPickerColumn
 
+private const val CLOCK_STYLE_DIGITAL = "digital"
+private const val CLOCK_STYLE_FLIP = "flip"
+
 @Composable
 fun PomodoroScreen(
     viewModel: PomodoroViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onImmersiveModeChange: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedDurationMinutes by rememberSaveable { mutableIntStateOf(25) }
+    var selectedBreakDurationMinutes by rememberSaveable { mutableIntStateOf(5) }
     var targetFocusCount by rememberSaveable { mutableIntStateOf(1) }
     var selectedTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     var showTaskPicker by remember { mutableStateOf(false) }
     var showDurationWheel by remember { mutableStateOf(false) }
+    var showBreakDurationWheel by remember { mutableStateOf(false) }
     var showSummary by remember { mutableStateOf(false) }
+    var isImmersiveMode by rememberSaveable { mutableStateOf(false) }
+    var suppressLandscapeAutoImmersion by rememberSaveable { mutableStateOf(false) }
+    var clockStyle by rememberSaveable { mutableStateOf(CLOCK_STYLE_DIGITAL) }
+    val hasActiveTimer = uiState.activeSession != null
+
+    fun enterImmersiveMode() {
+        suppressLandscapeAutoImmersion = false
+        isImmersiveMode = true
+    }
+
+    fun exitImmersiveMode() {
+        isImmersiveMode = false
+        if (isLandscape) {
+            suppressLandscapeAutoImmersion = true
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
@@ -74,6 +110,27 @@ fun PomodoroScreen(
         }
     }
 
+    LaunchedEffect(hasActiveTimer, isLandscape) {
+        if (!hasActiveTimer) {
+            isImmersiveMode = false
+            suppressLandscapeAutoImmersion = false
+            return@LaunchedEffect
+        }
+        if (!isLandscape) {
+            suppressLandscapeAutoImmersion = false
+        } else if (!suppressLandscapeAutoImmersion && !isImmersiveMode) {
+            isImmersiveMode = true
+        }
+    }
+
+    LaunchedEffect(hasActiveTimer, isImmersiveMode) {
+        onImmersiveModeChange(hasActiveTimer && isImmersiveMode)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onImmersiveModeChange(false) }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
@@ -83,30 +140,48 @@ fun PomodoroScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 20.dp, vertical = if (hasActiveTimer && isImmersiveMode) 8.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            PomodoroHeader(uiState = uiState)
+            if (!hasActiveTimer || !isImmersiveMode) {
+                PomodoroHeader(uiState = uiState)
+            }
 
-            if (uiState.activeSession == null) {
+            if (!hasActiveTimer) {
                 IdlePomodoroPanel(
                     tasks = uiState.tasks,
                     selectedTaskId = selectedTaskId,
                     selectedDurationMinutes = selectedDurationMinutes,
+                    selectedBreakDurationMinutes = selectedBreakDurationMinutes,
                     targetFocusCount = targetFocusCount,
                     summary = uiState.summary,
                     onDurationChange = { selectedDurationMinutes = it },
+                    onBreakDurationChange = { selectedBreakDurationMinutes = it },
                     onTargetFocusCountChange = { targetFocusCount = it },
                     onPickTask = { showTaskPicker = true },
-                    onClearTask = { selectedTaskId = null },
                     onOpenDurationWheel = { showDurationWheel = true },
+                    onOpenBreakDurationWheel = { showBreakDurationWheel = true },
                     onOpenSummary = { showSummary = true },
-                    onStart = { viewModel.start(selectedTaskId, selectedDurationMinutes, targetFocusCount) },
+                    onStart = {
+                        viewModel.start(
+                            taskId = selectedTaskId,
+                            durationMinutes = selectedDurationMinutes,
+                            breakDurationMinutes = selectedBreakDurationMinutes,
+                            targetFocusCount = targetFocusCount
+                        )
+                    },
                     modifier = Modifier.weight(1f)
                 )
             } else {
                 ActivePomodoroPanel(
                     uiState = uiState,
+                    isImmersiveMode = isImmersiveMode,
+                    clockStyle = clockStyle,
+                    onEnterImmersiveMode = ::enterImmersiveMode,
+                    onExitImmersiveMode = ::exitImmersiveMode,
+                    onToggleClockStyle = {
+                        clockStyle = if (clockStyle == CLOCK_STYLE_FLIP) CLOCK_STYLE_DIGITAL else CLOCK_STYLE_FLIP
+                    },
                     onPause = viewModel::pause,
                     onResume = viewModel::resume,
                     onCompleteCurrentSession = viewModel::completeCurrentSession,
@@ -130,11 +205,28 @@ fun PomodoroScreen(
 
     if (showDurationWheel) {
         DurationWheelDialog(
+            title = "专注时长",
+            description = "滚轮只在点击确定后写入专注时长。",
             initialDurationMinutes = selectedDurationMinutes,
+            wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120),
             onDismiss = { showDurationWheel = false },
             onConfirm = { duration ->
                 selectedDurationMinutes = duration
                 showDurationWheel = false
+            }
+        )
+    }
+
+    if (showBreakDurationWheel) {
+        DurationWheelDialog(
+            title = "休息时长",
+            description = "休息时长会应用到本轮每次短休息。",
+            initialDurationMinutes = selectedBreakDurationMinutes,
+            wheelDurations = listOf(1, 3, 5, 8, 10, 12, 15, 20, 25, 30),
+            onDismiss = { showBreakDurationWheel = false },
+            onConfirm = { duration ->
+                selectedBreakDurationMinutes = duration
+                showBreakDurationWheel = false
             }
         )
     }
@@ -150,38 +242,213 @@ fun PomodoroScreen(
 
 @Composable
 private fun PomodoroHeader(uiState: PomodoroUiState) {
+    val trailingText = if (uiState.activeSession == null) {
+        "今日 ${uiState.summary.finishedFocusCount} 个"
+    } else {
+        uiState.statusLabel
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("番茄钟", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    text = if (uiState.activeSession == null) "设置本轮计划，再开始专注" else "${uiState.roundLabel} · ${uiState.taskTitle}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.76f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            Text("番茄钟", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            StatusPill(text = trailingText)
+        }
+    }
+}
+
+@Composable
+private fun StatusPill(text: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f),
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun IdlePomodoroPanel(
+    tasks: List<TaskEntity>,
+    selectedTaskId: String?,
+    selectedDurationMinutes: Int,
+    selectedBreakDurationMinutes: Int,
+    targetFocusCount: Int,
+    summary: PomodoroSummary,
+    onDurationChange: (Int) -> Unit,
+    onBreakDurationChange: (Int) -> Unit,
+    onTargetFocusCountChange: (Int) -> Unit,
+    onPickTask: () -> Unit,
+    onOpenDurationWheel: () -> Unit,
+    onOpenBreakDurationWheel: () -> Unit,
+    onOpenSummary: () -> Unit,
+    onStart: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val selectedTask = tasks.firstOrNull { it.id == selectedTaskId }
+    val quickDurations = listOf(15, 25, 45, 60, 90)
+    val quickBreakDurations = listOf(3, 5, 10, 15)
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CompactPlanCard(
+            selectedTask = selectedTask,
+            selectedDurationMinutes = selectedDurationMinutes,
+            selectedBreakDurationMinutes = selectedBreakDurationMinutes,
+            targetFocusCount = targetFocusCount,
+            onPickTask = onPickTask
+        )
+
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onStart
+        ) {
+            Text("开始专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
+        }
+
+        CompactSettingsPanel(
+            quickDurations = quickDurations,
+            quickBreakDurations = quickBreakDurations,
+            selectedDurationMinutes = selectedDurationMinutes,
+            selectedBreakDurationMinutes = selectedBreakDurationMinutes,
+            targetFocusCount = targetFocusCount,
+            onDurationChange = onDurationChange,
+            onBreakDurationChange = onBreakDurationChange,
+            onTargetFocusCountChange = onTargetFocusCountChange,
+            onOpenDurationWheel = onOpenDurationWheel,
+            onOpenBreakDurationWheel = onOpenBreakDurationWheel
+        )
+
+        SummaryBar(summary = summary, onClick = onOpenSummary)
+    }
+}
+
+@Composable
+private fun CompactPlanCard(
+    selectedTask: TaskEntity?,
+    selectedDurationMinutes: Int,
+    selectedBreakDurationMinutes: Int,
+    targetFocusCount: Int,
+    onPickTask: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = formatDuration(selectedDurationMinutes * 60),
+                fontSize = 58.sp,
+                lineHeight = 60.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    text = uiState.statusLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("当前任务", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = selectedTask?.title ?: "空白专注",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                TextButton(onClick = onPickTask) { Text("更换") }
+            }
+            Text(
+                text = "$targetFocusCount 个番茄 · 每次休息 $selectedBreakDurationMinutes 分钟",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CompactSettingsPanel(
+    quickDurations: List<Int>,
+    quickBreakDurations: List<Int>,
+    selectedDurationMinutes: Int,
+    selectedBreakDurationMinutes: Int,
+    targetFocusCount: Int,
+    onDurationChange: (Int) -> Unit,
+    onBreakDurationChange: (Int) -> Unit,
+    onTargetFocusCountChange: (Int) -> Unit,
+    onOpenDurationWheel: () -> Unit,
+    onOpenBreakDurationWheel: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            CompactSettingRow(label = "时长") {
+                quickDurations.forEach { duration ->
+                    DurationChip(
+                        duration = duration,
+                        selected = selectedDurationMinutes == duration,
+                        onClick = { onDurationChange(duration) }
+                    )
+                }
+                SmallActionChip(text = "滚轮", onClick = onOpenDurationWheel)
+            }
+            CompactSettingRow(label = "休息") {
+                quickBreakDurations.forEach { duration ->
+                    DurationChip(
+                        duration = duration,
+                        selected = selectedBreakDurationMinutes == duration,
+                        onClick = { onBreakDurationChange(duration) }
+                    )
+                }
+                SmallActionChip(text = "滚轮", onClick = onOpenBreakDurationWheel)
+            }
+            CompactSettingRow(label = "轮数") {
+                listOf(1, 2, 3, 4).forEach { count ->
+                    CountChip(
+                        count = count,
+                        selected = targetFocusCount == count,
+                        onClick = { onTargetFocusCountChange(count) }
+                    )
+                }
             }
         }
     }
@@ -189,121 +456,28 @@ private fun PomodoroHeader(uiState: PomodoroUiState) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun IdlePomodoroPanel(
-    tasks: List<TaskEntity>,
-    selectedTaskId: String?,
-    selectedDurationMinutes: Int,
-    targetFocusCount: Int,
-    summary: PomodoroSummary,
-    onDurationChange: (Int) -> Unit,
-    onTargetFocusCountChange: (Int) -> Unit,
-    onPickTask: () -> Unit,
-    onClearTask: () -> Unit,
-    onOpenDurationWheel: () -> Unit,
-    onOpenSummary: () -> Unit,
-    onStart: () -> Unit,
-    modifier: Modifier = Modifier
+private fun CompactSettingRow(
+    label: String,
+    content: @Composable () -> Unit
 ) {
-    val selectedTask = tasks.firstOrNull { it.id == selectedTaskId }
-    val quickDurations = listOf(15, 25, 45, 60, 90)
-    val scrollState = rememberScrollState()
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(scrollState),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        SummaryBar(summary = summary, onClick = onOpenSummary)
-
-        TaskBindingCard(
-            selectedTask = selectedTask,
-            taskCount = tasks.size,
-            onPickTask = onPickTask,
-            onClearTask = onClearTask
+        Text(
+            text = label,
+            modifier = Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        FlowRow(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("专注时长", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Text(
-                    text = "$selectedDurationMinutes min",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    quickDurations.forEach { duration ->
-                        DurationChip(
-                            duration = duration,
-                            selected = selectedDurationMinutes == duration,
-                            onClick = { onDurationChange(duration) }
-                        )
-                    }
-                }
-                OutlinedButton(onClick = onOpenDurationWheel) {
-                    Text("滚轮微调")
-                }
-            }
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("本轮番茄数", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                        Text("每个番茄后自动休息 5 min", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text("$targetFocusCount 个", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                }
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(1, 2, 3, 4).forEach { count ->
-                        CountChip(
-                            count = count,
-                            selected = targetFocusCount == count,
-                            onClick = { onTargetFocusCountChange(count) }
-                        )
-                    }
-                }
-            }
-        }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onStart
-        ) {
-            Text("开始本轮专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
+            content()
         }
     }
 }
@@ -337,59 +511,13 @@ private fun SummaryBar(summary: PomodoroSummary, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TaskBindingCard(
-    selectedTask: TaskEntity?,
-    taskCount: Int,
-    onPickTask: () -> Unit,
-    onClearTask: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onPickTask),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("当前任务", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Text("点击更换", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            }
-            Text(
-                text = selectedTask?.title ?: "空白专注",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = if (selectedTask == null) {
-                    if (taskCount == 0) "当前还没有任务，可先直接开始空白番茄钟。" else "点击这张卡片，可以绑定一个 Todo 任务。"
-                } else {
-                    "已绑定 Todo，完成后会保存任务标题快照。"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (selectedTask != null) {
-                TextButton(onClick = onClearTask) { Text("清除绑定，改为空白专注") }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ActivePomodoroPanel(
     uiState: PomodoroUiState,
+    isImmersiveMode: Boolean,
+    clockStyle: String,
+    onEnterImmersiveMode: () -> Unit,
+    onExitImmersiveMode: () -> Unit,
+    onToggleClockStyle: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCompleteCurrentSession: () -> Unit,
@@ -398,98 +526,423 @@ private fun ActivePomodoroPanel(
     modifier: Modifier = Modifier
 ) {
     val session = uiState.activeSession ?: return
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.CenterHorizontally
+    if (isImmersiveMode) {
+        ImmersivePomodoroPanel(
+            uiState = uiState,
+            clockStyle = clockStyle,
+            onExitImmersiveMode = onExitImmersiveMode,
+            modifier = modifier
+        )
+        return
+    }
+
+    val scrollState = rememberScrollState()
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val isWideLayout = maxWidth > maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ActiveModeBar(
+                clockStyle = clockStyle,
+                onEnterImmersiveMode = onEnterImmersiveMode,
+                onToggleClockStyle = onToggleClockStyle
+            )
+
+            if (isWideLayout) {
+                ActiveTimerWideCard(
+                    uiState = uiState,
+                    session = session,
+                    clockStyle = clockStyle
+                )
+            } else {
+                ActiveTimerCard(
+                    uiState = uiState,
+                    session = session,
+                    clockStyle = clockStyle
+                )
+            }
+
+            ActiveControlPanel(
+                uiState = uiState,
+                onPause = onPause,
+                onResume = onResume,
+                onCompleteCurrentSession = onCompleteCurrentSession,
+                onSkipBreak = onSkipBreak,
+                onCancel = onCancel
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImmersivePomodoroPanel(
+    uiState: PomodoroUiState,
+    clockStyle: String,
+    onExitImmersiveMode: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(onClick = onExitImmersiveMode),
+        contentAlignment = Alignment.Center
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        val isWideLayout = maxWidth > maxHeight
+        TimerClockDisplay(
+            timeText = formatDuration(uiState.remainingSeconds),
+            clockStyle = clockStyle,
+            compact = false,
+            prominent = true,
+            landscape = isWideLayout
+        )
+    }
+}
+
+@Composable
+private fun ActiveModeBar(
+    clockStyle: String,
+    onEnterImmersiveMode: () -> Unit,
+    onToggleClockStyle: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SmallActionChip(
+            text = if (clockStyle == CLOCK_STYLE_FLIP) "数字时钟" else "翻页时钟",
+            onClick = onToggleClockStyle
+        )
+        SmallActionChip(
+            text = "沉浸模式",
+            onClick = onEnterImmersiveMode
+        )
+    }
+}
+
+@Composable
+private fun ActiveTimerCard(
+    uiState: PomodoroUiState,
+    session: PomodoroSessionEntity,
+    clockStyle: String
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TimerClockDisplay(
+                timeText = formatDuration(uiState.remainingSeconds),
+                clockStyle = clockStyle,
+                compact = false
+            )
+            SegmentedProgressBar(progress = uiState.progress)
+            PhaseInfo(uiState = uiState, compact = false)
+            ActiveTaskInfo(uiState = uiState, session = session)
+        }
+    }
+}
+
+@Composable
+private fun ActiveTimerWideCard(
+    uiState: PomodoroUiState,
+    session: PomodoroSessionEntity,
+    clockStyle: String
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 30.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier.weight(1.1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                TimerClockDisplay(
+                    timeText = formatDuration(uiState.remainingSeconds),
+                    clockStyle = clockStyle,
+                    compact = true
+                )
+                SegmentedProgressBar(progress = uiState.progress)
+            }
+            Column(
+                modifier = Modifier.weight(0.9f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                PhaseInfo(uiState = uiState, compact = false)
+                ActiveTaskInfo(uiState = uiState, session = session)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhaseInfo(uiState: PomodoroUiState, compact: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = uiState.statusLabel,
+            style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = uiState.roundLabel,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun ActiveTaskInfo(
+    uiState: PomodoroUiState,
+    session: PomodoroSessionEntity
+) {
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = uiState.taskTitle,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "计划 ${session.plannedDurationSeconds / 60} 分钟 · 已运行 ${formatDuration(uiState.elapsedSeconds)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (uiState.nextLabel.isNotBlank()) {
                 Text(
-                    text = formatDuration(uiState.remainingSeconds),
-                    fontSize = 76.sp,
-                    lineHeight = 78.sp,
+                    text = uiState.nextLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveControlPanel(
+    uiState: PomodoroUiState,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onCompleteCurrentSession: () -> Unit,
+    onSkipBreak: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (uiState.isPaused) {
+                Button(modifier = Modifier.weight(1f), onClick = onResume) { Text("继续") }
+            } else {
+                FilledTonalButton(modifier = Modifier.weight(1f), onClick = onPause) { Text("暂停") }
+            }
+            if (uiState.isBreak) {
+                Button(modifier = Modifier.weight(1f), onClick = onSkipBreak) { Text("跳过休息") }
+            } else {
+                Button(modifier = Modifier.weight(1f), onClick = onCompleteCurrentSession) { Text("完成本阶段") }
+            }
+        }
+        OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("放弃本轮") }
+    }
+}
+
+@Composable
+private fun TimerClockDisplay(
+    timeText: String,
+    clockStyle: String,
+    compact: Boolean,
+    prominent: Boolean = false,
+    landscape: Boolean = false
+) {
+    if (clockStyle == CLOCK_STYLE_FLIP) {
+        FlipClockDisplay(timeText = timeText, compact = compact, prominent = prominent, landscape = landscape)
+    } else {
+        Text(
+            text = timeText,
+            fontSize = when {
+                prominent && landscape -> 126.sp
+                prominent -> 108.sp
+                compact -> 58.sp
+                else -> 78.sp
+            },
+            lineHeight = when {
+                prominent && landscape -> 128.sp
+                prominent -> 110.sp
+                compact -> 60.sp
+                else -> 80.sp
+            },
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun FlipClockDisplay(
+    timeText: String,
+    compact: Boolean,
+    prominent: Boolean,
+    landscape: Boolean
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(
+            when {
+                prominent && landscape -> 10.dp
+                prominent -> 7.dp
+                compact -> 3.dp
+                else -> 5.dp
+            }
+        ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        timeText.forEach { char ->
+            if (char == ':') {
+                Text(
+                    text = ":",
+                    fontSize = when {
+                        prominent && landscape -> 78.sp
+                        prominent -> 64.sp
+                        compact -> 44.sp
+                        else -> 54.sp
+                    },
+                    lineHeight = when {
+                        prominent && landscape -> 80.sp
+                        prominent -> 66.sp
+                        compact -> 46.sp
+                        else -> 56.sp
+                    },
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                FlipDigitCard(value = char.toString(), compact = compact, prominent = prominent, landscape = landscape)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlipDigitCard(value: String, compact: Boolean, prominent: Boolean, landscape: Boolean) {
+    val width = when {
+        prominent && landscape -> 76.dp
+        prominent -> 62.dp
+        compact -> 38.dp
+        else -> 46.dp
+    }
+    val corner = when {
+        prominent -> 22.dp
+        compact -> 14.dp
+        else -> 18.dp
+    }
+    Surface(
+        modifier = Modifier.width(width),
+        shape = RoundedCornerShape(corner),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = if (prominent) 12.dp else if (compact) 7.dp else 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    (slideInVertically { height -> -height } + fadeIn()) togetherWith
+                        (slideOutVertically { height -> height } + fadeOut())
+                },
+                label = "flip-digit"
+            ) { digit ->
+                Text(
+                    text = digit,
+                    fontSize = when {
+                        prominent && landscape -> 70.sp
+                        prominent -> 56.sp
+                        compact -> 34.sp
+                        else -> 42.sp
+                    },
+                    lineHeight = when {
+                        prominent && landscape -> 72.sp
+                        prominent -> 58.sp
+                        compact -> 36.sp
+                        else -> 44.sp
+                    },
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = uiState.statusLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = uiState.roundLabel,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = uiState.taskTitle,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "计划 ${session.plannedDurationSeconds / 60} min · 已运行 ${formatDuration(uiState.elapsedSeconds)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (uiState.nextLabel.isNotBlank()) {
-                            Text(
-                                text = uiState.nextLabel,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
             }
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.22f)
+            ) {}
         }
+    }
+}
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                if (uiState.isPaused) {
-                    Button(modifier = Modifier.weight(1f), onClick = onResume) { Text("继续") }
+@Composable
+private fun SegmentedProgressBar(
+    progress: Float,
+    segmentCount: Int = 24
+) {
+    val activeCount = (progress * segmentCount).toInt().coerceIn(0, segmentCount)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        repeat(segmentCount) { index ->
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(8.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = if (index < activeCount) {
+                    MaterialTheme.colorScheme.secondary
                 } else {
-                    FilledTonalButton(modifier = Modifier.weight(1f), onClick = onPause) { Text("暂停") }
+                    MaterialTheme.colorScheme.surfaceVariant
                 }
-                if (uiState.isBreak) {
-                    Button(modifier = Modifier.weight(1f), onClick = onSkipBreak) { Text("跳过休息") }
-                } else {
-                    Button(modifier = Modifier.weight(1f), onClick = onCompleteCurrentSession) { Text("完成本阶段") }
-                }
-            }
-            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("放弃本轮") }
+            ) {}
         }
     }
 }
@@ -508,9 +961,9 @@ private fun DurationChip(
         border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f))
     ) {
         Text(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            text = "$duration",
-            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+            text = "${duration}分",
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -530,9 +983,30 @@ private fun CountChip(
         border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f))
     ) {
         Text(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp),
             text = "$count",
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun SmallActionChip(
+    text: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -540,20 +1014,22 @@ private fun CountChip(
 
 @Composable
 private fun DurationWheelDialog(
+    title: String,
+    description: String,
     initialDurationMinutes: Int,
+    wheelDurations: List<Int>,
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit
 ) {
     var draftDuration by remember { mutableIntStateOf(initialDurationMinutes) }
-    val wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("滚轮微调", fontWeight = FontWeight.Bold)
+                Text(title, fontWeight = FontWeight.Bold)
                 Text(
-                    text = "滚轮只在点击确定后写入时长。",
+                    text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -572,7 +1048,7 @@ private fun DurationWheelDialog(
                 ) {
                     Text(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
-                        text = "$draftDuration min",
+                        text = "$draftDuration 分钟",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
