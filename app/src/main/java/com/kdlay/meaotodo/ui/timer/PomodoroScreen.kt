@@ -57,10 +57,12 @@ fun PomodoroScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedDurationMinutes by rememberSaveable { mutableIntStateOf(25) }
+    var selectedBreakDurationMinutes by rememberSaveable { mutableIntStateOf(5) }
     var targetFocusCount by rememberSaveable { mutableIntStateOf(1) }
     var selectedTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     var showTaskPicker by remember { mutableStateOf(false) }
     var showDurationWheel by remember { mutableStateOf(false) }
+    var showBreakDurationWheel by remember { mutableStateOf(false) }
     var showSummary by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
@@ -94,14 +96,24 @@ fun PomodoroScreen(
                     tasks = uiState.tasks,
                     selectedTaskId = selectedTaskId,
                     selectedDurationMinutes = selectedDurationMinutes,
+                    selectedBreakDurationMinutes = selectedBreakDurationMinutes,
                     targetFocusCount = targetFocusCount,
                     summary = uiState.summary,
                     onDurationChange = { selectedDurationMinutes = it },
+                    onBreakDurationChange = { selectedBreakDurationMinutes = it },
                     onTargetFocusCountChange = { targetFocusCount = it },
                     onPickTask = { showTaskPicker = true },
                     onOpenDurationWheel = { showDurationWheel = true },
+                    onOpenBreakDurationWheel = { showBreakDurationWheel = true },
                     onOpenSummary = { showSummary = true },
-                    onStart = { viewModel.start(selectedTaskId, selectedDurationMinutes, targetFocusCount) },
+                    onStart = {
+                        viewModel.start(
+                            taskId = selectedTaskId,
+                            durationMinutes = selectedDurationMinutes,
+                            breakDurationMinutes = selectedBreakDurationMinutes,
+                            targetFocusCount = targetFocusCount
+                        )
+                    },
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -130,11 +142,28 @@ fun PomodoroScreen(
 
     if (showDurationWheel) {
         DurationWheelDialog(
+            title = "专注时长",
+            description = "滚轮只在点击确定后写入专注时长。",
             initialDurationMinutes = selectedDurationMinutes,
+            wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120),
             onDismiss = { showDurationWheel = false },
             onConfirm = { duration ->
                 selectedDurationMinutes = duration
                 showDurationWheel = false
+            }
+        )
+    }
+
+    if (showBreakDurationWheel) {
+        DurationWheelDialog(
+            title = "休息时长",
+            description = "休息时长会应用到本轮每次短休息。",
+            initialDurationMinutes = selectedBreakDurationMinutes,
+            wheelDurations = listOf(1, 3, 5, 8, 10, 12, 15, 20, 25, 30),
+            onDismiss = { showBreakDurationWheel = false },
+            onConfirm = { duration ->
+                selectedBreakDurationMinutes = duration
+                showBreakDurationWheel = false
             }
         )
     }
@@ -193,18 +222,22 @@ private fun IdlePomodoroPanel(
     tasks: List<TaskEntity>,
     selectedTaskId: String?,
     selectedDurationMinutes: Int,
+    selectedBreakDurationMinutes: Int,
     targetFocusCount: Int,
     summary: PomodoroSummary,
     onDurationChange: (Int) -> Unit,
+    onBreakDurationChange: (Int) -> Unit,
     onTargetFocusCountChange: (Int) -> Unit,
     onPickTask: () -> Unit,
     onOpenDurationWheel: () -> Unit,
+    onOpenBreakDurationWheel: () -> Unit,
     onOpenSummary: () -> Unit,
     onStart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val selectedTask = tasks.firstOrNull { it.id == selectedTaskId }
     val quickDurations = listOf(15, 25, 45, 60, 90)
+    val quickBreakDurations = listOf(3, 5, 10, 15)
     val scrollState = rememberScrollState()
 
     Column(
@@ -217,6 +250,7 @@ private fun IdlePomodoroPanel(
         CompactPlanCard(
             selectedTask = selectedTask,
             selectedDurationMinutes = selectedDurationMinutes,
+            selectedBreakDurationMinutes = selectedBreakDurationMinutes,
             targetFocusCount = targetFocusCount,
             onPickTask = onPickTask
         )
@@ -230,11 +264,15 @@ private fun IdlePomodoroPanel(
 
         CompactSettingsPanel(
             quickDurations = quickDurations,
+            quickBreakDurations = quickBreakDurations,
             selectedDurationMinutes = selectedDurationMinutes,
+            selectedBreakDurationMinutes = selectedBreakDurationMinutes,
             targetFocusCount = targetFocusCount,
             onDurationChange = onDurationChange,
+            onBreakDurationChange = onBreakDurationChange,
             onTargetFocusCountChange = onTargetFocusCountChange,
-            onOpenDurationWheel = onOpenDurationWheel
+            onOpenDurationWheel = onOpenDurationWheel,
+            onOpenBreakDurationWheel = onOpenBreakDurationWheel
         )
 
         SummaryBar(summary = summary, onClick = onOpenSummary)
@@ -245,6 +283,7 @@ private fun IdlePomodoroPanel(
 private fun CompactPlanCard(
     selectedTask: TaskEntity?,
     selectedDurationMinutes: Int,
+    selectedBreakDurationMinutes: Int,
     targetFocusCount: Int,
     onPickTask: () -> Unit
 ) {
@@ -285,7 +324,7 @@ private fun CompactPlanCard(
                 TextButton(onClick = onPickTask) { Text("更换") }
             }
             Text(
-                text = "$targetFocusCount 个番茄 · 休息 5 分钟",
+                text = "$targetFocusCount 个番茄 · 每次休息 $selectedBreakDurationMinutes 分钟",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold
@@ -298,11 +337,15 @@ private fun CompactPlanCard(
 @Composable
 private fun CompactSettingsPanel(
     quickDurations: List<Int>,
+    quickBreakDurations: List<Int>,
     selectedDurationMinutes: Int,
+    selectedBreakDurationMinutes: Int,
     targetFocusCount: Int,
     onDurationChange: (Int) -> Unit,
+    onBreakDurationChange: (Int) -> Unit,
     onTargetFocusCountChange: (Int) -> Unit,
-    onOpenDurationWheel: () -> Unit
+    onOpenDurationWheel: () -> Unit,
+    onOpenBreakDurationWheel: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -324,6 +367,16 @@ private fun CompactSettingsPanel(
                     )
                 }
                 SmallActionChip(text = "滚轮", onClick = onOpenDurationWheel)
+            }
+            CompactSettingRow(label = "休息") {
+                quickBreakDurations.forEach { duration ->
+                    DurationChip(
+                        duration = duration,
+                        selected = selectedBreakDurationMinutes == duration,
+                        onClick = { onBreakDurationChange(duration) }
+                    )
+                }
+                SmallActionChip(text = "滚轮", onClick = onOpenBreakDurationWheel)
             }
             CompactSettingRow(label = "轮数") {
                 listOf(1, 2, 3, 4).forEach { count ->
@@ -603,20 +656,22 @@ private fun SmallActionChip(
 
 @Composable
 private fun DurationWheelDialog(
+    title: String,
+    description: String,
     initialDurationMinutes: Int,
+    wheelDurations: List<Int>,
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit
 ) {
     var draftDuration by remember { mutableIntStateOf(initialDurationMinutes) }
-    val wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("滚轮微调", fontWeight = FontWeight.Bold)
+                Text(title, fontWeight = FontWeight.Bold)
                 Text(
-                    text = "滚轮只在点击确定后写入时长。",
+                    text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
