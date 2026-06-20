@@ -1,5 +1,12 @@
 package com.kdlay.meaotodo.ui.timer
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,7 +65,8 @@ private const val CLOCK_STYLE_FLIP = "flip"
 @Composable
 fun PomodoroScreen(
     viewModel: PomodoroViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onImmersiveModeChange: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -71,6 +80,7 @@ fun PomodoroScreen(
     var showSummary by remember { mutableStateOf(false) }
     var isImmersiveMode by rememberSaveable { mutableStateOf(false) }
     var clockStyle by rememberSaveable { mutableStateOf(CLOCK_STYLE_DIGITAL) }
+    val hasActiveTimer = uiState.activeSession != null
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
@@ -84,6 +94,17 @@ fun PomodoroScreen(
         }
     }
 
+    LaunchedEffect(hasActiveTimer, isImmersiveMode) {
+        if (!hasActiveTimer && isImmersiveMode) {
+            isImmersiveMode = false
+        }
+        onImmersiveModeChange(hasActiveTimer && isImmersiveMode)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onImmersiveModeChange(false) }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
@@ -93,14 +114,14 @@ fun PomodoroScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = if (uiState.activeSession != null && isImmersiveMode) 8.dp else 12.dp),
+                .padding(horizontal = 20.dp, vertical = if (hasActiveTimer && isImmersiveMode) 8.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (uiState.activeSession == null || !isImmersiveMode) {
+            if (!hasActiveTimer || !isImmersiveMode) {
                 PomodoroHeader(uiState = uiState)
             }
 
-            if (uiState.activeSession == null) {
+            if (!hasActiveTimer) {
                 IdlePomodoroPanel(
                     tasks = uiState.tasks,
                     selectedTaskId = selectedTaskId,
@@ -477,6 +498,23 @@ private fun ActivePomodoroPanel(
     modifier: Modifier = Modifier
 ) {
     val session = uiState.activeSession ?: return
+    if (isImmersiveMode) {
+        ImmersivePomodoroPanel(
+            uiState = uiState,
+            session = session,
+            clockStyle = clockStyle,
+            onToggleImmersiveMode = onToggleImmersiveMode,
+            onToggleClockStyle = onToggleClockStyle,
+            onPause = onPause,
+            onResume = onResume,
+            onCompleteCurrentSession = onCompleteCurrentSession,
+            onSkipBreak = onSkipBreak,
+            onCancel = onCancel,
+            modifier = modifier
+        )
+        return
+    }
+
     val scrollState = rememberScrollState()
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val isWideLayout = maxWidth > maxHeight
@@ -484,11 +522,11 @@ private fun ActivePomodoroPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(if (isImmersiveMode) 8.dp else 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ActiveModeBar(
-                isImmersiveMode = isImmersiveMode,
+                isImmersiveMode = false,
                 clockStyle = clockStyle,
                 onToggleImmersiveMode = onToggleImmersiveMode,
                 onToggleClockStyle = onToggleClockStyle
@@ -499,15 +537,111 @@ private fun ActivePomodoroPanel(
                     uiState = uiState,
                     session = session,
                     clockStyle = clockStyle,
-                    isImmersiveMode = isImmersiveMode
+                    isImmersiveMode = false
                 )
             } else {
                 ActiveTimerCard(
                     uiState = uiState,
                     session = session,
                     clockStyle = clockStyle,
-                    isImmersiveMode = isImmersiveMode
+                    isImmersiveMode = false
                 )
+            }
+
+            ActiveControlPanel(
+                uiState = uiState,
+                onPause = onPause,
+                onResume = onResume,
+                onCompleteCurrentSession = onCompleteCurrentSession,
+                onSkipBreak = onSkipBreak,
+                onCancel = onCancel
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImmersivePomodoroPanel(
+    uiState: PomodoroUiState,
+    session: PomodoroSessionEntity,
+    clockStyle: String,
+    onToggleImmersiveMode: () -> Unit,
+    onToggleClockStyle: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onCompleteCurrentSession: () -> Unit,
+    onSkipBreak: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isWideLayout = maxWidth > maxHeight
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ActiveModeBar(
+                isImmersiveMode = true,
+                clockStyle = clockStyle,
+                onToggleImmersiveMode = onToggleImmersiveMode,
+                onToggleClockStyle = onToggleClockStyle
+            )
+
+            if (isWideLayout) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1.2f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        TimerClockDisplay(
+                            timeText = formatDuration(uiState.remainingSeconds),
+                            clockStyle = clockStyle,
+                            compact = false,
+                            prominent = true
+                        )
+                        SegmentedProgressBar(progress = uiState.progress)
+                    }
+                    Column(
+                        modifier = Modifier.weight(0.8f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        PhaseInfo(uiState = uiState, compact = false)
+                        ImmersiveTaskLine(uiState = uiState, session = session)
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TimerClockDisplay(
+                        timeText = formatDuration(uiState.remainingSeconds),
+                        clockStyle = clockStyle,
+                        compact = false,
+                        prominent = true
+                    )
+                    Column(
+                        modifier = Modifier.padding(top = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        SegmentedProgressBar(progress = uiState.progress)
+                        PhaseInfo(uiState = uiState, compact = false)
+                        ImmersiveTaskLine(uiState = uiState, session = session)
+                    }
+                }
             }
 
             ActiveControlPanel(
@@ -560,10 +694,7 @@ private fun ActiveTimerCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
         Column(
-            modifier = Modifier.padding(
-                horizontal = 22.dp,
-                vertical = if (isImmersiveMode) 22.dp else 28.dp
-            ),
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = if (isImmersiveMode) 22.dp else 28.dp),
             verticalArrangement = Arrangement.spacedBy(if (isImmersiveMode) 14.dp else 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -574,18 +705,7 @@ private fun ActiveTimerCard(
             )
             SegmentedProgressBar(progress = uiState.progress)
             PhaseInfo(uiState = uiState, compact = isImmersiveMode)
-            if (!isImmersiveMode) {
-                ActiveTaskInfo(uiState = uiState, session = session)
-            } else {
-                Text(
-                    text = uiState.taskTitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-            }
+            ActiveTaskInfo(uiState = uiState, session = session)
         }
     }
 }
@@ -627,19 +747,7 @@ private fun ActiveTimerWideCard(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 PhaseInfo(uiState = uiState, compact = false)
-                if (!isImmersiveMode) {
-                    ActiveTaskInfo(uiState = uiState, session = session)
-                } else {
-                    Text(
-                        text = uiState.taskTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                ActiveTaskInfo(uiState = uiState, session = session)
             }
         }
     }
@@ -660,6 +768,36 @@ private fun PhaseInfo(uiState: PomodoroUiState, compact: Boolean) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Composable
+private fun ImmersiveTaskLine(
+    uiState: PomodoroUiState,
+    session: PomodoroSessionEntity
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = uiState.taskTitle,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = "计划 ${session.plannedDurationSeconds / 60} 分钟 · 已运行 ${formatDuration(uiState.elapsedSeconds)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (uiState.nextLabel.isNotBlank()) {
+            Text(
+                text = uiState.nextLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
@@ -737,15 +875,24 @@ private fun ActiveControlPanel(
 private fun TimerClockDisplay(
     timeText: String,
     clockStyle: String,
-    compact: Boolean
+    compact: Boolean,
+    prominent: Boolean = false
 ) {
     if (clockStyle == CLOCK_STYLE_FLIP) {
-        FlipClockDisplay(timeText = timeText, compact = compact)
+        FlipClockDisplay(timeText = timeText, compact = compact, prominent = prominent)
     } else {
         Text(
             text = timeText,
-            fontSize = if (compact) 58.sp else 78.sp,
-            lineHeight = if (compact) 60.sp else 80.sp,
+            fontSize = when {
+                prominent -> 96.sp
+                compact -> 58.sp
+                else -> 78.sp
+            },
+            lineHeight = when {
+                prominent -> 98.sp
+                compact -> 60.sp
+                else -> 80.sp
+            },
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
@@ -753,49 +900,91 @@ private fun TimerClockDisplay(
 }
 
 @Composable
-private fun FlipClockDisplay(timeText: String, compact: Boolean) {
+private fun FlipClockDisplay(timeText: String, compact: Boolean, prominent: Boolean) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(
+            when {
+                prominent -> 7.dp
+                compact -> 3.dp
+                else -> 5.dp
+            }
+        ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         timeText.forEach { char ->
             if (char == ':') {
                 Text(
                     text = ":",
-                    fontSize = if (compact) 44.sp else 54.sp,
-                    lineHeight = if (compact) 46.sp else 56.sp,
+                    fontSize = when {
+                        prominent -> 64.sp
+                        compact -> 44.sp
+                        else -> 54.sp
+                    },
+                    lineHeight = when {
+                        prominent -> 66.sp
+                        compact -> 46.sp
+                        else -> 56.sp
+                    },
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
-                FlipDigitCard(value = char.toString(), compact = compact)
+                FlipDigitCard(value = char.toString(), compact = compact, prominent = prominent)
             }
         }
     }
 }
 
 @Composable
-private fun FlipDigitCard(value: String, compact: Boolean) {
+private fun FlipDigitCard(value: String, compact: Boolean, prominent: Boolean) {
+    val width = when {
+        prominent -> 58.dp
+        compact -> 38.dp
+        else -> 46.dp
+    }
+    val corner = when {
+        prominent -> 22.dp
+        compact -> 14.dp
+        else -> 18.dp
+    }
     Surface(
-        modifier = Modifier.width(if (compact) 38.dp else 46.dp),
-        shape = RoundedCornerShape(if (compact) 14.dp else 18.dp),
+        modifier = Modifier.width(width),
+        shape = RoundedCornerShape(corner),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         tonalElevation = 2.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = if (compact) 7.dp else 9.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = if (prominent) 12.dp else if (compact) 7.dp else 9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(
-                text = value,
-                fontSize = if (compact) 34.sp else 42.sp,
-                lineHeight = if (compact) 36.sp else 44.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    (slideInVertically { height -> -height } + fadeIn()) togetherWith
+                        (slideOutVertically { height -> height } + fadeOut()) using
+                        SizeTransform(clip = false)
+                },
+                label = "flip-digit"
+            ) { digit ->
+                Text(
+                    text = digit,
+                    fontSize = when {
+                        prominent -> 54.sp
+                        compact -> 34.sp
+                        else -> 42.sp
+                    },
+                    lineHeight = when {
+                        prominent -> 56.sp
+                        compact -> 36.sp
+                        else -> 44.sp
+                    },
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
