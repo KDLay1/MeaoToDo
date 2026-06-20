@@ -84,8 +84,8 @@ fun PomodoroScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             PomodoroHeader(uiState = uiState)
 
@@ -99,7 +99,6 @@ fun PomodoroScreen(
                     onDurationChange = { selectedDurationMinutes = it },
                     onTargetFocusCountChange = { targetFocusCount = it },
                     onPickTask = { showTaskPicker = true },
-                    onClearTask = { selectedTaskId = null },
                     onOpenDurationWheel = { showDurationWheel = true },
                     onOpenSummary = { showSummary = true },
                     onStart = { viewModel.start(selectedTaskId, selectedDurationMinutes, targetFocusCount) },
@@ -151,33 +150,24 @@ fun PomodoroScreen(
 
 @Composable
 private fun PomodoroHeader(uiState: PomodoroUiState) {
-    val statusLabel = if (uiState.activeSession == null) "准备开始" else uiState.statusLabel
+    val trailingText = if (uiState.activeSession == null) {
+        "今日 ${uiState.summary.finishedFocusCount} 个"
+    } else {
+        uiState.statusLabel
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("番茄钟", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    text = if (uiState.activeSession == null) {
-                        "设置任务、时长和轮数"
-                    } else {
-                        "${uiState.roundLabel} · ${uiState.taskTitle}"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.74f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            StatusPill(text = statusLabel)
+            Text("番茄钟", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            StatusPill(text = trailingText)
         }
     }
 }
@@ -190,7 +180,7 @@ private fun StatusPill(text: String) {
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     ) {
         Text(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             text = text,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
@@ -198,7 +188,6 @@ private fun StatusPill(text: String) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IdlePomodoroPanel(
     tasks: List<TaskEntity>,
@@ -209,7 +198,6 @@ private fun IdlePomodoroPanel(
     onDurationChange: (Int) -> Unit,
     onTargetFocusCountChange: (Int) -> Unit,
     onPickTask: () -> Unit,
-    onClearTask: () -> Unit,
     onOpenDurationWheel: () -> Unit,
     onOpenSummary: () -> Unit,
     onStart: () -> Unit,
@@ -223,35 +211,111 @@ private fun IdlePomodoroPanel(
         modifier = modifier
             .fillMaxWidth()
             .verticalScroll(scrollState),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        SummaryBar(summary = summary, onClick = onOpenSummary)
-
-        FocusPlanCard(
+        CompactPlanCard(
             selectedTask = selectedTask,
             selectedDurationMinutes = selectedDurationMinutes,
             targetFocusCount = targetFocusCount,
-            taskCount = tasks.size,
-            onPickTask = onPickTask,
-            onClearTask = onClearTask
+            onPickTask = onPickTask
         )
 
-        SettingCard(
-            title = "专注时长",
-            caption = "常用时长一键选择，需要细调时再打开滚轮。"
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onStart
+        ) {
+            Text("开始专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
+        }
+
+        CompactSettingsPanel(
+            quickDurations = quickDurations,
+            selectedDurationMinutes = selectedDurationMinutes,
+            targetFocusCount = targetFocusCount,
+            onDurationChange = onDurationChange,
+            onTargetFocusCountChange = onTargetFocusCountChange,
+            onOpenDurationWheel = onOpenDurationWheel
+        )
+
+        SummaryBar(summary = summary, onClick = onOpenSummary)
+    }
+}
+
+@Composable
+private fun CompactPlanCard(
+    selectedTask: TaskEntity?,
+    selectedDurationMinutes: Int,
+    targetFocusCount: Int,
+    onPickTask: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "$selectedDurationMinutes 分钟",
-                style = MaterialTheme.typography.headlineMedium,
+                text = formatDuration(selectedDurationMinutes * 60),
+                fontSize = 58.sp,
+                lineHeight = 60.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary
+                textAlign = TextAlign.Center
             )
-            FlowRow(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("当前任务", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = selectedTask?.title ?: "空白专注",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                TextButton(onClick = onPickTask) { Text("更换") }
+            }
+            Text(
+                text = "$targetFocusCount 个番茄 · 休息 5 分钟",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CompactSettingsPanel(
+    quickDurations: List<Int>,
+    selectedDurationMinutes: Int,
+    targetFocusCount: Int,
+    onDurationChange: (Int) -> Unit,
+    onTargetFocusCountChange: (Int) -> Unit,
+    onOpenDurationWheel: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            CompactSettingRow(label = "时长") {
                 quickDurations.forEach { duration ->
                     DurationChip(
                         duration = duration,
@@ -259,22 +323,9 @@ private fun IdlePomodoroPanel(
                         onClick = { onDurationChange(duration) }
                     )
                 }
+                SmallActionChip(text = "滚轮", onClick = onOpenDurationWheel)
             }
-            OutlinedButton(onClick = onOpenDurationWheel) {
-                Text("滚轮微调")
-            }
-        }
-
-        SettingCard(
-            title = "本轮番茄数",
-            caption = "每个番茄后自动进入 5 分钟休息。"
-        ) {
-            Text("$targetFocusCount 个", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            CompactSettingRow(label = "轮数") {
                 listOf(1, 2, 3, 4).forEach { count ->
                     CountChip(
                         count = count,
@@ -284,128 +335,32 @@ private fun IdlePomodoroPanel(
                 }
             }
         }
-
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onStart
-        ) {
-            Text("开始本轮专注", modifier = Modifier.padding(vertical = 8.dp), fontWeight = FontWeight.Bold)
-        }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FocusPlanCard(
-    selectedTask: TaskEntity?,
-    selectedDurationMinutes: Int,
-    targetFocusCount: Int,
-    taskCount: Int,
-    onPickTask: () -> Unit,
-    onClearTask: () -> Unit
-) {
-    val totalFocusMinutes = selectedDurationMinutes * targetFocusCount
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "本轮计划",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = "$selectedDurationMinutes:00",
-                fontSize = 64.sp,
-                lineHeight = 66.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                MiniMetricCard(
-                    modifier = Modifier.weight(1f),
-                    label = "番茄",
-                    value = "${targetFocusCount}个"
-                )
-                MiniMetricCard(
-                    modifier = Modifier.weight(1f),
-                    label = "专注",
-                    value = "${totalFocusMinutes}分"
-                )
-                MiniMetricCard(
-                    modifier = Modifier.weight(1f),
-                    label = "休息",
-                    value = "5分"
-                )
-            }
-            TaskBindingCard(
-                selectedTask = selectedTask,
-                taskCount = taskCount,
-                onPickTask = onPickTask,
-                onClearTask = onClearTask
-            )
-        }
-    }
-}
-
-@Composable
-private fun MiniMetricCard(
+private fun CompactSettingRow(
     label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun SettingCard(
-    title: String,
-    caption: String,
     content: @Composable () -> Unit
 ) {
-    Surface(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Text(
+            text = label,
+            modifier = Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
             content()
         }
     }
@@ -435,56 +390,6 @@ private fun SummaryBar(summary: PomodoroSummary, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
             Text("›", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun TaskBindingCard(
-    selectedTask: TaskEntity?,
-    taskCount: Int,
-    onPickTask: () -> Unit,
-    onClearTask: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onPickTask),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("当前任务", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Text("点击更换", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            }
-            Text(
-                text = selectedTask?.title ?: "空白专注",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = if (selectedTask == null) {
-                    if (taskCount == 0) "当前还没有任务，可先直接开始空白番茄钟。" else "可以绑定一个 Todo，也可以保留空白专注。"
-                } else {
-                    "完成后会保存任务标题快照。"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (selectedTask != null) {
-                TextButton(onClick = onClearTask) { Text("清除绑定") }
-            }
         }
     }
 }
@@ -645,9 +550,9 @@ private fun DurationChip(
         border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f))
     ) {
         Text(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
             text = "${duration}分",
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -667,9 +572,30 @@ private fun CountChip(
         border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f))
     ) {
         Text(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp),
             text = "$count",
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun SmallActionChip(
+    text: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+    ) {
+        Text(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
         )
     }
