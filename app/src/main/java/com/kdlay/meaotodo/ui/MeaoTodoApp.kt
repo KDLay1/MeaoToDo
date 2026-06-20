@@ -46,7 +46,8 @@ private val mainTabs = MainTab.entries.toList()
 @Composable
 fun MeaoTodoApp(
     todoViewModel: TodoViewModel,
-    pomodoroViewModel: PomodoroViewModel
+    pomodoroViewModel: PomodoroViewModel,
+    onTimerImmersiveModeChange: (Boolean) -> Unit = {}
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
     var isTimerImmersive by rememberSaveable { mutableStateOf(false) }
@@ -82,7 +83,10 @@ fun MeaoTodoApp(
                 MainTab.Today -> TodoScreen(viewModel = todoViewModel)
                 MainTab.Timer -> PomodoroScreen(
                     viewModel = pomodoroViewModel,
-                    onImmersiveModeChange = { isTimerImmersive = it }
+                    onImmersiveModeChange = { isImmersive ->
+                        isTimerImmersive = isImmersive
+                        onTimerImmersiveModeChange(isImmersive)
+                    }
                 )
                 MainTab.Ledger -> LedgerScreen()
                 MainTab.Board -> BoardScreen()
