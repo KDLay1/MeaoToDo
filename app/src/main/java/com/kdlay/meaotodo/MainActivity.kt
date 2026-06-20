@@ -1,5 +1,6 @@
 package com.kdlay.meaotodo
 
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,7 +28,14 @@ class MainActivity : ComponentActivity() {
             MeaoTodoTheme {
                 MeaoTodoApp(
                     todoViewModel = todoViewModel,
-                    pomodoroViewModel = pomodoroViewModel
+                    pomodoroViewModel = pomodoroViewModel,
+                    onTimerImmersiveModeChange = { isImmersive ->
+                        requestedOrientation = if (isImmersive) {
+                            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                        } else {
+                            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                        }
+                    }
                 )
             }
         }
