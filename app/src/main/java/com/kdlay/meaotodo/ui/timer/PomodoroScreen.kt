@@ -3,6 +3,7 @@ package com.kdlay.meaotodo.ui.timer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -49,6 +51,9 @@ import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.ui.components.WheelPickerColumn
 
+private const val CLOCK_STYLE_DIGITAL = "digital"
+private const val CLOCK_STYLE_FLIP = "flip"
+
 @Composable
 fun PomodoroScreen(
     viewModel: PomodoroViewModel,
@@ -64,6 +69,8 @@ fun PomodoroScreen(
     var showDurationWheel by remember { mutableStateOf(false) }
     var showBreakDurationWheel by remember { mutableStateOf(false) }
     var showSummary by remember { mutableStateOf(false) }
+    var isImmersiveMode by rememberSaveable { mutableStateOf(false) }
+    var clockStyle by rememberSaveable { mutableStateOf(CLOCK_STYLE_DIGITAL) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
@@ -86,10 +93,12 @@ fun PomodoroScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp, vertical = if (uiState.activeSession != null && isImmersiveMode) 8.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            PomodoroHeader(uiState = uiState)
+            if (uiState.activeSession == null || !isImmersiveMode) {
+                PomodoroHeader(uiState = uiState)
+            }
 
             if (uiState.activeSession == null) {
                 IdlePomodoroPanel(
@@ -119,6 +128,12 @@ fun PomodoroScreen(
             } else {
                 ActivePomodoroPanel(
                     uiState = uiState,
+                    isImmersiveMode = isImmersiveMode,
+                    clockStyle = clockStyle,
+                    onToggleImmersiveMode = { isImmersiveMode = !isImmersiveMode },
+                    onToggleClockStyle = {
+                        clockStyle = if (clockStyle == CLOCK_STYLE_FLIP) CLOCK_STYLE_DIGITAL else CLOCK_STYLE_FLIP
+                    },
                     onPause = viewModel::pause,
                     onResume = viewModel::resume,
                     onCompleteCurrentSession = viewModel::completeCurrentSession,
@@ -450,6 +465,10 @@ private fun SummaryBar(summary: PomodoroSummary, onClick: () -> Unit) {
 @Composable
 private fun ActivePomodoroPanel(
     uiState: PomodoroUiState,
+    isImmersiveMode: Boolean,
+    clockStyle: String,
+    onToggleImmersiveMode: () -> Unit,
+    onToggleClockStyle: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCompleteCurrentSession: () -> Unit,
@@ -458,38 +477,80 @@ private fun ActivePomodoroPanel(
     modifier: Modifier = Modifier
 ) {
     val session = uiState.activeSession ?: return
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        ActiveTimerCard(uiState = uiState, session = session)
+    val scrollState = rememberScrollState()
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val isWideLayout = maxWidth > maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(if (isImmersiveMode) 8.dp else 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ActiveModeBar(
+                isImmersiveMode = isImmersiveMode,
+                clockStyle = clockStyle,
+                onToggleImmersiveMode = onToggleImmersiveMode,
+                onToggleClockStyle = onToggleClockStyle
+            )
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                if (uiState.isPaused) {
-                    Button(modifier = Modifier.weight(1f), onClick = onResume) { Text("继续") }
-                } else {
-                    FilledTonalButton(modifier = Modifier.weight(1f), onClick = onPause) { Text("暂停") }
-                }
-                if (uiState.isBreak) {
-                    Button(modifier = Modifier.weight(1f), onClick = onSkipBreak) { Text("跳过休息") }
-                } else {
-                    Button(modifier = Modifier.weight(1f), onClick = onCompleteCurrentSession) { Text("完成本阶段") }
-                }
+            if (isWideLayout) {
+                ActiveTimerWideCard(
+                    uiState = uiState,
+                    session = session,
+                    clockStyle = clockStyle,
+                    isImmersiveMode = isImmersiveMode
+                )
+            } else {
+                ActiveTimerCard(
+                    uiState = uiState,
+                    session = session,
+                    clockStyle = clockStyle,
+                    isImmersiveMode = isImmersiveMode
+                )
             }
-            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("放弃本轮") }
+
+            ActiveControlPanel(
+                uiState = uiState,
+                onPause = onPause,
+                onResume = onResume,
+                onCompleteCurrentSession = onCompleteCurrentSession,
+                onSkipBreak = onSkipBreak,
+                onCancel = onCancel
+            )
         }
+    }
+}
+
+@Composable
+private fun ActiveModeBar(
+    isImmersiveMode: Boolean,
+    clockStyle: String,
+    onToggleImmersiveMode: () -> Unit,
+    onToggleClockStyle: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SmallActionChip(
+            text = if (clockStyle == CLOCK_STYLE_FLIP) "数字时钟" else "翻页时钟",
+            onClick = onToggleClockStyle
+        )
+        SmallActionChip(
+            text = if (isImmersiveMode) "退出沉浸" else "沉浸模式",
+            onClick = onToggleImmersiveMode
+        )
     }
 }
 
 @Composable
 private fun ActiveTimerCard(
     uiState: PomodoroUiState,
-    session: PomodoroSessionEntity
+    session: PomodoroSessionEntity,
+    clockStyle: String,
+    isImmersiveMode: Boolean
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -499,66 +560,248 @@ private fun ActiveTimerCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier.padding(
+                horizontal = 22.dp,
+                vertical = if (isImmersiveMode) 22.dp else 28.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(if (isImmersiveMode) 14.dp else 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = formatDuration(uiState.remainingSeconds),
-                fontSize = 78.sp,
-                lineHeight = 80.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
+            TimerClockDisplay(
+                timeText = formatDuration(uiState.remainingSeconds),
+                clockStyle = clockStyle,
+                compact = false
             )
             SegmentedProgressBar(progress = uiState.progress)
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            PhaseInfo(uiState = uiState, compact = isImmersiveMode)
+            if (!isImmersiveMode) {
+                ActiveTaskInfo(uiState = uiState, session = session)
+            } else {
                 Text(
-                    text = uiState.statusLabel,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = uiState.roundLabel,
+                    text = uiState.taskTitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
                 )
             }
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+        }
+    }
+}
+
+@Composable
+private fun ActiveTimerWideCard(
+    uiState: PomodoroUiState,
+    session: PomodoroSessionEntity,
+    clockStyle: String,
+    isImmersiveMode: Boolean
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = if (isImmersiveMode) 16.dp else 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1.1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                TimerClockDisplay(
+                    timeText = formatDuration(uiState.remainingSeconds),
+                    clockStyle = clockStyle,
+                    compact = true
+                )
+                SegmentedProgressBar(progress = uiState.progress)
+            }
+            Column(
+                modifier = Modifier.weight(0.9f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                PhaseInfo(uiState = uiState, compact = false)
+                if (!isImmersiveMode) {
+                    ActiveTaskInfo(uiState = uiState, session = session)
+                } else {
                     Text(
                         text = uiState.taskTitle,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
                     )
-                    Text(
-                        text = "计划 ${session.plannedDurationSeconds / 60} 分钟 · 已运行 ${formatDuration(uiState.elapsedSeconds)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (uiState.nextLabel.isNotBlank()) {
-                        Text(
-                            text = uiState.nextLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PhaseInfo(uiState: PomodoroUiState, compact: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = uiState.statusLabel,
+            style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = uiState.roundLabel,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun ActiveTaskInfo(
+    uiState: PomodoroUiState,
+    session: PomodoroSessionEntity
+) {
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = uiState.taskTitle,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "计划 ${session.plannedDurationSeconds / 60} 分钟 · 已运行 ${formatDuration(uiState.elapsedSeconds)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (uiState.nextLabel.isNotBlank()) {
+                Text(
+                    text = uiState.nextLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveControlPanel(
+    uiState: PomodoroUiState,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onCompleteCurrentSession: () -> Unit,
+    onSkipBreak: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (uiState.isPaused) {
+                Button(modifier = Modifier.weight(1f), onClick = onResume) { Text("继续") }
+            } else {
+                FilledTonalButton(modifier = Modifier.weight(1f), onClick = onPause) { Text("暂停") }
+            }
+            if (uiState.isBreak) {
+                Button(modifier = Modifier.weight(1f), onClick = onSkipBreak) { Text("跳过休息") }
+            } else {
+                Button(modifier = Modifier.weight(1f), onClick = onCompleteCurrentSession) { Text("完成本阶段") }
+            }
+        }
+        OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("放弃本轮") }
+    }
+}
+
+@Composable
+private fun TimerClockDisplay(
+    timeText: String,
+    clockStyle: String,
+    compact: Boolean
+) {
+    if (clockStyle == CLOCK_STYLE_FLIP) {
+        FlipClockDisplay(timeText = timeText, compact = compact)
+    } else {
+        Text(
+            text = timeText,
+            fontSize = if (compact) 58.sp else 78.sp,
+            lineHeight = if (compact) 60.sp else 80.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun FlipClockDisplay(timeText: String, compact: Boolean) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        timeText.forEach { char ->
+            if (char == ':') {
+                Text(
+                    text = ":",
+                    fontSize = if (compact) 44.sp else 54.sp,
+                    lineHeight = if (compact) 46.sp else 56.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                FlipDigitCard(value = char.toString(), compact = compact)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlipDigitCard(value: String, compact: Boolean) {
+    Surface(
+        modifier = Modifier.width(if (compact) 38.dp else 46.dp),
+        shape = RoundedCornerShape(if (compact) 14.dp else 18.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = if (compact) 7.dp else 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = value,
+                fontSize = if (compact) 34.sp else 42.sp,
+                lineHeight = if (compact) 36.sp else 44.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.22f)
+            ) {}
         }
     }
 }
