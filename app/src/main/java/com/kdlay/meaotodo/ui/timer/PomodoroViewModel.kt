@@ -3,11 +3,11 @@ package com.kdlay.meaotodo.ui.timer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kdlay.meaotodo.core.settings.AppSettingsStore
+import com.kdlay.meaotodo.core.settings.PomodoroPreferences
 import com.kdlay.meaotodo.data.local.entity.PomodoroRunEntity
 import com.kdlay.meaotodo.data.local.entity.PomodoroSessionEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
-import com.kdlay.meaotodo.core.settings.AppSettingsStore
-import com.kdlay.meaotodo.core.settings.PomodoroPreferences
 import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.data.repository.TaskRepository
 import java.util.Calendar
@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 class PomodoroViewModel(
     private val pomodoroRepository: PomodoroRepository,
     private val settingsStore: AppSettingsStore,
-    taskRepository: TaskRepository
+    private val taskRepository: TaskRepository
 ) : ViewModel() {
     private val nowMillis = MutableStateFlow(System.currentTimeMillis())
     private val tasksState = taskRepository.activeTasks.stateIn(
@@ -104,6 +104,26 @@ class PomodoroViewModel(
             settingsStore.setPomodoroClockStyle(nextStyle)
         }
     }
+
+    fun addQuickFocusTask(title: String, estimatedPomodoros: Int = 1) {
+        viewModelScope.launch {
+            val cleanTitle = title.trim()
+            if (cleanTitle.isBlank()) {
+                _messages.emit("任务标题不能为空")
+                return@launch
+            }
+            taskRepository.addTask(
+                title = cleanTitle,
+                note = "从番茄页快速创建",
+                priority = 2,
+                dueAt = startOfDay(System.currentTimeMillis()),
+                hasDueTime = false,
+                estimatedPomodoros = estimatedPomodoros.coerceIn(1, 12)
+            )
+            _messages.emit("已添加专注任务")
+        }
+    }
+
     fun start(
         taskId: String?,
         durationMinutes: Int,
