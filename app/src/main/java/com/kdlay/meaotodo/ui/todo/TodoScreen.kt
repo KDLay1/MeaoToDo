@@ -47,15 +47,26 @@ fun TodoScreen(
     var selectedListId by rememberSaveable { mutableStateOf(SMART_ALL) }
     var displayModeName by rememberSaveable { mutableStateOf(TodoDisplayMode.List.name) }
     var calendarModeName by rememberSaveable { mutableStateOf(TodoCalendarMode.Week.name) }
+    var statusFilterName by rememberSaveable { mutableStateOf(TodoStatusFilter.All.name) }
+    var priorityFilterName by rememberSaveable { mutableStateOf(TodoPriorityFilter.All.name) }
+    var sortModeName by rememberSaveable { mutableStateOf(TodoSortMode.Time.name) }
     var selectedDate by rememberSaveable { mutableLongStateOf(startOfDay(System.currentTimeMillis())) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddListDialog by remember { mutableStateOf(false) }
     var showListPickerDialog by remember { mutableStateOf(false) }
+    var showFilterSortSheet by remember { mutableStateOf(false) }
     var quickAddTitle by rememberSaveable { mutableStateOf("") }
 
     val displayMode = remember(displayModeName) { TodoDisplayMode.valueOf(displayModeName) }
     val calendarMode = remember(calendarModeName) { TodoCalendarMode.valueOf(calendarModeName) }
+    val filterState = remember(statusFilterName, priorityFilterName, sortModeName) {
+        TodoFilterState(
+            status = TodoStatusFilter.valueOf(statusFilterName),
+            priority = TodoPriorityFilter.valueOf(priorityFilterName),
+            sortMode = TodoSortMode.valueOf(sortModeName)
+        )
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message ->
@@ -64,6 +75,7 @@ fun TodoScreen(
     }
 
     val groups = remember(tasks) { buildTodoGroups(tasks) }
+    val visibleGroups = remember(groups, filterState) { applyTodoFilterAndSort(groups, filterState) }
     val listOptions = remember(groups, customLists) { buildListOptions(groups, customLists) }
 
     LaunchedEffect(listOptions, selectedListId) {
@@ -73,7 +85,7 @@ fun TodoScreen(
     }
 
     val selectedList = listOptions.firstOrNull { it.id == selectedListId } ?: listOptions.first()
-    val selectedTasks = groups.tasksFor(selectedList.id)
+    val selectedTasks = visibleGroups.tasksFor(selectedList.id)
 
     Scaffold(
         modifier = modifier,
@@ -91,12 +103,14 @@ fun TodoScreen(
             if (displayMode == TodoDisplayMode.List) {
                 TodoListModeScreen(
                     tasks = tasks,
-                    groups = groups,
+                    groups = visibleGroups,
                     selectedList = selectedList,
                     selectedTasks = selectedTasks,
                     displayMode = displayMode,
                     calendarMode = calendarMode,
+                    filterState = filterState,
                     onPickList = { showListPickerDialog = true },
+                    onOpenFilterSort = { showFilterSortSheet = true },
                     onDisplayModeChange = { displayModeName = it.name },
                     onCalendarModeChange = { calendarModeName = it.name },
                     onAddTask = { showAddTaskDialog = true },
@@ -125,7 +139,7 @@ fun TodoScreen(
                 )
             } else {
                 TodoCalendarModeScreen(
-                    groups = groups,
+                    groups = visibleGroups,
                     selectedList = selectedList,
                     displayMode = displayMode,
                     calendarMode = calendarMode,
@@ -152,6 +166,19 @@ fun TodoScreen(
             onSelect = { selectedListId = it },
             onAddList = { showAddListDialog = true },
             onDismiss = { showListPickerDialog = false }
+        )
+    }
+
+    if (showFilterSortSheet) {
+        TodoFilterSortSheet(
+            currentState = filterState,
+            onApply = { nextState ->
+                statusFilterName = nextState.status.name
+                priorityFilterName = nextState.priority.name
+                sortModeName = nextState.sortMode.name
+                showFilterSortSheet = false
+            },
+            onDismiss = { showFilterSortSheet = false }
         )
     }
 
@@ -207,7 +234,9 @@ private fun TodoListModeScreen(
     selectedTasks: List<TaskEntity>,
     displayMode: TodoDisplayMode,
     calendarMode: TodoCalendarMode,
+    filterState: TodoFilterState,
     onPickList: () -> Unit,
+    onOpenFilterSort: () -> Unit,
     onDisplayModeChange: (TodoDisplayMode) -> Unit,
     onCalendarModeChange: (TodoCalendarMode) -> Unit,
     onAddTask: () -> Unit,
@@ -225,13 +254,21 @@ private fun TodoListModeScreen(
             tasks = tasks,
             selectedList = selectedList,
             selectedTasks = selectedTasks,
-            onPickList = onPickList
+            filterState = filterState,
+            onPickList = onPickList,
+            onOpenFilterSort = onOpenFilterSort
         )
         QuickAddBar(
             title = quickAddTitle,
             onTitleChange = onQuickAddTitleChange,
             onSubmit = onQuickAddSubmit,
             onOpenFullEditor = onAddTask
+        )
+        DisplayModeSwitcher(
+            displayMode = displayMode,
+            calendarMode = calendarMode,
+            onDisplayModeChange = onDisplayModeChange,
+            onCalendarModeChange = onCalendarModeChange
         )
         TodoTaskList(
             modifier = Modifier.weight(1f),
@@ -250,7 +287,9 @@ private fun CompactTodoHeader(
     tasks: List<TaskEntity>,
     selectedList: TodoListOption,
     selectedTasks: List<TaskEntity>,
-    onPickList: () -> Unit
+    filterState: TodoFilterState,
+    onPickList: () -> Unit,
+    onOpenFilterSort: () -> Unit
 ) {
     val pendingCount = tasks.count { !it.isDone }
     val todayCount = tasks.count { !it.isDone && it.dueAt?.let(::isToday) == true }
@@ -298,11 +337,18 @@ private fun CompactTodoHeader(
                     fontSize = 34.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Text(
-                    text = "⋮",
-                    fontSize = 30.sp,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Surface(
+                    modifier = Modifier.clickable(onClick = onOpenFilterSort),
+                    shape = RoundedCornerShape(999.dp),
+                    color = if (filterState.isDefault) Color.Transparent else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 3.dp),
+                        text = "⋮",
+                        fontSize = 30.sp,
+                        color = if (filterState.isDefault) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -311,6 +357,10 @@ private fun CompactTodoHeader(
             SummaryCount(label = "今天", count = todayCount, color = MaterialTheme.colorScheme.primary)
             Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
             SummaryCount(label = "完成", count = completedCount, color = MaterialTheme.colorScheme.tertiary)
+            if (!filterState.isDefault) {
+                Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SummaryCount(label = "筛选后", count = selectedTasks.size, color = MaterialTheme.colorScheme.secondary)
+            }
         }
     }
 }
@@ -332,6 +382,7 @@ private fun SummaryCount(label: String, count: Int, color: Color) {
         )
     }
 }
+
 @Composable
 private fun TodoCalendarModeScreen(
     groups: TodoGroups,
