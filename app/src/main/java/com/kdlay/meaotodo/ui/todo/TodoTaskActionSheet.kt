@@ -23,6 +23,11 @@ internal fun TodoTaskActionSheet(
     onArchiveShell: () -> Unit = onDismiss,
     onPinTodayShell: () -> Unit = onDismiss
 ) {
+    fun runShell(action: () -> Unit) {
+        action()
+        onDismiss()
+    }
+
     MeaoBottomSheet(
         title = "任务更多操作",
         subtitle = task.title,
@@ -62,25 +67,25 @@ internal fun TodoTaskActionSheet(
                 icon = "★",
                 title = "设为今日重点",
                 subtitle = "后续会同步到看板的今日重点模块",
-                onClick = onPinTodayShell
+                onClick = { runShell(onPinTodayShell) }
             )
             MeaoActionRow(
                 icon = "⇄",
                 title = "移动到列表",
                 subtitle = "后续接入列表选择底部弹层",
-                onClick = onMoveShell
+                onClick = { runShell(onMoveShell) }
             )
             MeaoActionRow(
                 icon = "⧉",
                 title = "复制任务",
                 subtitle = "后续会复制标题、备注和元信息",
-                onClick = onCopyShell
+                onClick = { runShell(onCopyShell) }
             )
             MeaoActionRow(
                 icon = "□",
                 title = "归档",
                 subtitle = "后续会进入归档任务区域",
-                onClick = onArchiveShell
+                onClick = { runShell(onArchiveShell) }
             )
             MeaoActionRow(
                 icon = "!",
