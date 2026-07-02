@@ -141,6 +141,7 @@ internal fun defaultDueAtFor(
 ): Long? = when {
     displayMode == TodoDisplayMode.Calendar -> startOfDay(selectedDate)
     selectedListId == SMART_TODAY -> todayRange().first
+    selectedListId == SMART_UPCOMING -> addDays(todayRange().first, 1)
     else -> null
 }
 

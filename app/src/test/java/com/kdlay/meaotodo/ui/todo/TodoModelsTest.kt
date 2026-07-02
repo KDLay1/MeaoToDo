@@ -35,6 +35,16 @@ class TodoModelsTest {
         assertFalse(groups.today.any { it.id == "future" })
     }
 
+
+    @Test
+    fun defaultDueAtFor_usesTomorrowForUpcomingView() {
+        val today = todayRange().first
+
+        val dueAt = defaultDueAtFor(SMART_UPCOMING)
+
+        assertEquals(addDays(today, 1), dueAt)
+    }
+
     private fun task(
         id: String,
         dueAt: Long?,

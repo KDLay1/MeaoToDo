@@ -3,9 +3,10 @@ package com.kdlay.meaotodo.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -51,6 +52,7 @@ fun MeaoTodoApp(
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
     var isTimerImmersive by rememberSaveable { mutableStateOf(false) }
+    var requestedPomodoroTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     val hideBottomBar = selectedTab == MainTab.Timer && isTimerImmersive
 
     Scaffold(
@@ -89,9 +91,17 @@ fun MeaoTodoApp(
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                MainTab.Today -> TodoScreen(viewModel = todoViewModel)
+                MainTab.Today -> TodoScreen(
+                    viewModel = todoViewModel,
+                    onStartFocus = { task ->
+                        requestedPomodoroTaskId = task.id
+                        selectedTab = MainTab.Timer
+                    }
+                )
                 MainTab.Timer -> PomodoroScreen(
                     viewModel = pomodoroViewModel,
+                    requestedStartTaskId = requestedPomodoroTaskId,
+                    onRequestedStartTaskHandled = { requestedPomodoroTaskId = null },
                     onImmersiveModeChange = { isImmersive ->
                         isTimerImmersive = isImmersive
                         onTimerImmersiveModeChange(isImmersive)
@@ -107,15 +117,17 @@ fun MeaoTodoApp(
 @Composable
 private fun MainTabIcon(tab: MainTab, selected: Boolean) {
     Surface(
-        modifier = Modifier.size(32.dp),
-        shape = CircleShape,
-        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
-        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        modifier = Modifier
+            .width(56.dp)
+            .height(34.dp),
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = tab.icon,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
         }

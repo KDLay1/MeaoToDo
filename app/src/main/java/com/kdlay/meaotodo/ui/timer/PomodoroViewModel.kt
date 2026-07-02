@@ -263,6 +263,15 @@ data class PomodoroUiState(
             return (session.plannedDurationSeconds - elapsedSeconds).coerceAtLeast(0)
         }
 
+    val pausedSeconds: Int
+        get() {
+            if (!isPaused) return 0
+            val pausedAt = activeSession?.pausedAt ?: return 0
+            return ((nowMillis - pausedAt) / 1_000).toInt().coerceAtLeast(0)
+        }
+
+    val totalPausedSeconds: Int
+        get() = (activeSession?.accumulatedPausedSeconds ?: 0) + pausedSeconds
     val progress: Float
         get() {
             val session = activeSession ?: return 0f

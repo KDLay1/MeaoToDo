@@ -10,6 +10,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -20,10 +21,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -67,6 +70,8 @@ private const val CLOCK_STYLE_FLIP = "flip"
 fun PomodoroScreen(
     viewModel: PomodoroViewModel,
     modifier: Modifier = Modifier,
+    requestedStartTaskId: String? = null,
+    onRequestedStartTaskHandled: () -> Unit = {},
     onImmersiveModeChange: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -105,6 +110,24 @@ fun PomodoroScreen(
         }
     }
 
+    LaunchedEffect(requestedStartTaskId, uiState.tasks, hasActiveTimer) {
+        val taskId = requestedStartTaskId ?: return@LaunchedEffect
+        val task = uiState.tasks.firstOrNull { it.id == taskId }
+        if (task != null) {
+            selectedTaskId = task.id
+            if (!hasActiveTimer) {
+                viewModel.start(
+                    taskId = task.id,
+                    durationMinutes = selectedDurationMinutes,
+                    breakDurationMinutes = selectedBreakDurationMinutes,
+                    targetFocusCount = targetFocusCount
+                )
+            }
+            onRequestedStartTaskHandled()
+        } else if (uiState.tasks.isNotEmpty()) {
+            onRequestedStartTaskHandled()
+        }
+    }
     LaunchedEffect(uiState.tasks, selectedTaskId) {
         if (selectedTaskId != null && uiState.tasks.none { it.id == selectedTaskId }) {
             selectedTaskId = null
@@ -465,7 +488,7 @@ private fun CompactSettingsPanel(
                 SmallActionChip(text = "滚轮", onClick = onOpenBreakDurationWheel)
             }
             CompactSettingRow(label = "轮数") {
-                listOf(1, 2, 3, 4).forEach { count ->
+                (1..12).forEach { count ->
                     CountChip(
                         count = count,
                         selected = targetFocusCount == count,
@@ -721,7 +744,7 @@ private fun ActiveTimerWideCard(
 
 @Composable
 private fun PhaseInfo(uiState: PomodoroUiState, compact: Boolean) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(
             text = uiState.statusLabel,
             style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
@@ -734,9 +757,11 @@ private fun PhaseInfo(uiState: PomodoroUiState, compact: Boolean) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold
         )
+        if (uiState.isPaused) {
+            StatusPill(text = "已暂停 ${formatDuration(uiState.pausedSeconds)}")
+        }
     }
 }
-
 @Composable
 private fun ActiveTaskInfo(
     uiState: PomodoroUiState,
@@ -762,7 +787,11 @@ private fun ActiveTaskInfo(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "计划 ${session.plannedDurationSeconds / 60} 分钟 · 已运行 ${formatDuration(uiState.elapsedSeconds)}",
+                text = if (uiState.isPaused) {
+                    "计划 ${session.plannedDurationSeconds / 60} 分钟 · 已专注 ${formatDuration(uiState.elapsedSeconds)} · 暂停 ${formatDuration(uiState.pausedSeconds)}"
+                } else {
+                    "计划 ${session.plannedDurationSeconds / 60} 分钟 · 已运行 ${formatDuration(uiState.elapsedSeconds)}"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -793,7 +822,7 @@ private fun ActiveControlPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             if (uiState.isPaused) {
-                Button(modifier = Modifier.weight(1f), onClick = onResume) { Text("继续") }
+                Button(modifier = Modifier.weight(1f), onClick = onResume) { Text("继续 · ${formatDuration(uiState.pausedSeconds)}") }
             } else {
                 FilledTonalButton(modifier = Modifier.weight(1f), onClick = onPause) { Text("暂停") }
             }
@@ -849,32 +878,16 @@ private fun FlipClockDisplay(
         horizontalArrangement = Arrangement.spacedBy(
             when {
                 prominent && landscape -> 10.dp
-                prominent -> 7.dp
-                compact -> 3.dp
-                else -> 5.dp
+                prominent -> 8.dp
+                compact -> 4.dp
+                else -> 6.dp
             }
         ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         timeText.forEach { char ->
             if (char == ':') {
-                Text(
-                    text = ":",
-                    fontSize = when {
-                        prominent && landscape -> 78.sp
-                        prominent -> 64.sp
-                        compact -> 44.sp
-                        else -> 54.sp
-                    },
-                    lineHeight = when {
-                        prominent && landscape -> 80.sp
-                        prominent -> 66.sp
-                        compact -> 46.sp
-                        else -> 56.sp
-                    },
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                FlipClockSeparator(compact = compact, prominent = prominent, landscape = landscape)
             } else {
                 FlipDigitCard(value = char.toString(), compact = compact, prominent = prominent, landscape = landscape)
             }
@@ -883,31 +896,65 @@ private fun FlipClockDisplay(
 }
 
 @Composable
+private fun FlipClockSeparator(compact: Boolean, prominent: Boolean, landscape: Boolean) {
+    val dotSize = when {
+        prominent && landscape -> 11.dp
+        prominent -> 9.dp
+        compact -> 5.dp
+        else -> 7.dp
+    }
+    val gap = when {
+        prominent && landscape -> 18.dp
+        prominent -> 15.dp
+        compact -> 8.dp
+        else -> 11.dp
+    }
+    Column(
+        modifier = Modifier.width(dotSize * 2),
+        verticalArrangement = Arrangement.spacedBy(gap),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        repeat(2) {
+            Surface(
+                modifier = Modifier.size(dotSize),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
+            ) {}
+        }
+    }
+}
+
+@Composable
 private fun FlipDigitCard(value: String, compact: Boolean, prominent: Boolean, landscape: Boolean) {
     val width = when {
-        prominent && landscape -> 76.dp
-        prominent -> 62.dp
-        compact -> 38.dp
-        else -> 46.dp
+        prominent && landscape -> 82.dp
+        prominent -> 68.dp
+        compact -> 42.dp
+        else -> 50.dp
+    }
+    val height = when {
+        prominent && landscape -> 104.dp
+        prominent -> 88.dp
+        compact -> 56.dp
+        else -> 68.dp
     }
     val corner = when {
-        prominent -> 22.dp
-        compact -> 14.dp
-        else -> 18.dp
+        prominent -> 20.dp
+        compact -> 12.dp
+        else -> 16.dp
     }
     Surface(
-        modifier = Modifier.width(width),
+        modifier = Modifier
+            .width(width)
+            .height(height),
         shape = RoundedCornerShape(corner),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 2.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 4.dp,
+        shadowElevation = if (prominent) 5.dp else 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.20f))
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = if (prominent) 12.dp else if (compact) 7.dp else 9.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
+        Box(contentAlignment = Alignment.Center) {
             AnimatedContent(
                 targetState = value,
                 transitionSpec = {
@@ -919,31 +966,38 @@ private fun FlipDigitCard(value: String, compact: Boolean, prominent: Boolean, l
                 Text(
                     text = digit,
                     fontSize = when {
-                        prominent && landscape -> 70.sp
-                        prominent -> 56.sp
-                        compact -> 34.sp
-                        else -> 42.sp
-                    },
-                    lineHeight = when {
                         prominent && landscape -> 72.sp
                         prominent -> 58.sp
-                        compact -> 36.sp
-                        else -> 44.sp
+                        compact -> 34.sp
+                        else -> 43.sp
                     },
-                    fontWeight = FontWeight.Bold,
+                    lineHeight = when {
+                        prominent && landscape -> 74.sp
+                        prominent -> 60.sp
+                        compact -> 36.sp
+                        else -> 45.sp
+                    },
+                    fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center
                 )
             }
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(1.dp),
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.22f)
+                    .height(1.dp)
+                    .align(Alignment.Center),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+            ) {}
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(height / 2)
+                    .align(Alignment.TopCenter),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.10f)
             ) {}
         }
     }
 }
-
 @Composable
 private fun SegmentedProgressBar(
     progress: Float,

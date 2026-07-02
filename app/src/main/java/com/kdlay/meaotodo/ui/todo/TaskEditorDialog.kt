@@ -197,7 +197,7 @@ internal fun TaskEditorDialog(
 
                     OptionSection(title = "预计番茄") {
                         IntChoiceButtonGroup(
-                            values = listOf(0, 1, 2, 3, 4),
+                            values = (0..12).toList(),
                             selectedValue = estimatedPomodoros,
                             label = { if (it == 0) "无" else "$it 个" },
                             onSelect = { estimatedPomodoros = it }

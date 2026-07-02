@@ -28,15 +28,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 
 @Composable
 fun TodoScreen(
     viewModel: TodoViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onStartFocus: (TaskEntity) -> Unit = {}
 ) {
     val tasks by viewModel.tasks.collectAsState()
     val customLists by viewModel.taskLists.collectAsState()
@@ -49,6 +52,7 @@ fun TodoScreen(
     var showAddTaskDialog by remember { mutableStateOf(false) }
     var showAddListDialog by remember { mutableStateOf(false) }
     var showListPickerDialog by remember { mutableStateOf(false) }
+    var quickAddTitle by rememberSaveable { mutableStateOf("") }
 
     val displayMode = remember(displayModeName) { TodoDisplayMode.valueOf(displayModeName) }
     val calendarMode = remember(calendarModeName) { TodoCalendarMode.valueOf(calendarModeName) }
@@ -96,9 +100,27 @@ fun TodoScreen(
                     onDisplayModeChange = { displayModeName = it.name },
                     onCalendarModeChange = { calendarModeName = it.name },
                     onAddTask = { showAddTaskDialog = true },
+                    quickAddTitle = quickAddTitle,
+                    onQuickAddTitleChange = { quickAddTitle = it },
+                    onQuickAddSubmit = {
+                        val title = quickAddTitle.trim()
+                        if (title.isNotEmpty()) {
+                            viewModel.addTask(
+                                listId = defaultTaskListIdFor(selectedList.id),
+                                title = title,
+                                note = "",
+                                priority = 0,
+                                dueAt = defaultDueAtFor(selectedList.id, displayMode, selectedDate),
+                                hasDueTime = false,
+                                estimatedPomodoros = 0
+                            )
+                            quickAddTitle = ""
+                        }
+                    },
                     onCheckedChange = viewModel::setDone,
                     onEdit = { editingTask = it },
                     onRemove = viewModel::removeTask,
+                    onStartFocus = onStartFocus,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -116,6 +138,7 @@ fun TodoScreen(
                     onCheckedChange = viewModel::setDone,
                     onEdit = { editingTask = it },
                     onRemove = viewModel::removeTask,
+                    onStartFocus = onStartFocus,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -188,9 +211,13 @@ private fun TodoListModeScreen(
     onDisplayModeChange: (TodoDisplayMode) -> Unit,
     onCalendarModeChange: (TodoCalendarMode) -> Unit,
     onAddTask: () -> Unit,
+    quickAddTitle: String,
+    onQuickAddTitleChange: (String) -> Unit,
+    onQuickAddSubmit: () -> Unit,
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
     onRemove: (TaskEntity) -> Unit,
+    onStartFocus: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -200,20 +227,20 @@ private fun TodoListModeScreen(
             selectedTasks = selectedTasks,
             onPickList = onPickList
         )
-        DisplayModeSwitcher(
-            displayMode = displayMode,
-            calendarMode = calendarMode,
-            onDisplayModeChange = onDisplayModeChange,
-            onCalendarModeChange = onCalendarModeChange
+        QuickAddBar(
+            title = quickAddTitle,
+            onTitleChange = onQuickAddTitleChange,
+            onSubmit = onQuickAddSubmit,
+            onOpenFullEditor = onAddTask
         )
-        QuickAddBar(onClick = onAddTask)
         TodoTaskList(
             modifier = Modifier.weight(1f),
             groups = groups,
             selectedList = selectedList,
             onCheckedChange = onCheckedChange,
             onEdit = onEdit,
-            onRemove = onRemove
+            onRemove = onRemove,
+            onStartFocus = onStartFocus
         )
     }
 }
@@ -229,52 +256,82 @@ private fun CompactTodoHeader(
     val todayCount = tasks.count { !it.isDone && it.dueAt?.let(::isToday) == true }
     val completedCount = tasks.count { it.isDone }
 
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = selectedList.label,
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "MeaoToDo",
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Text(
-                    text = "待办 $pendingCount · 今天 $todayCount · 完成 $completedCount",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Surface(
-                modifier = Modifier.clickable(onClick = onPickList),
-                shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f),
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.clickable(onClick = onPickList),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("${selectedTasks.size} 项", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                    Text("▼", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        text = selectedList.label,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "⌄",
+                        fontSize = 30.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "⌕",
+                    fontSize = 34.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "⋮",
+                    fontSize = 30.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            SummaryCount(label = "待办", count = pendingCount, color = MaterialTheme.colorScheme.primary)
+            Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SummaryCount(label = "今天", count = todayCount, color = MaterialTheme.colorScheme.primary)
+            Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SummaryCount(label = "完成", count = completedCount, color = MaterialTheme.colorScheme.tertiary)
         }
     }
 }
 
+@Composable
+private fun SummaryCount(label: String, count: Int, color: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = color,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
 @Composable
 private fun TodoCalendarModeScreen(
     groups: TodoGroups,
@@ -290,6 +347,7 @@ private fun TodoCalendarModeScreen(
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
     onRemove: (TaskEntity) -> Unit,
+    onStartFocus: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -314,7 +372,8 @@ private fun TodoCalendarModeScreen(
             onCalendarModeChange = onCalendarModeChange,
             onCheckedChange = onCheckedChange,
             onEdit = onEdit,
-            onRemove = onRemove
+            onRemove = onRemove,
+            onStartFocus = onStartFocus
         )
     }
 }

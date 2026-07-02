@@ -101,6 +101,7 @@ internal fun TodoCalendarContent(
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
     onRemove: (TaskEntity) -> Unit,
+    onStartFocus: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val calendarTasks = groups.tasksFor(selectedList.id).filter { it.dueAt != null }
@@ -118,7 +119,8 @@ internal fun TodoCalendarContent(
                 onSelectedDateChange = onSelectedDateChange,
                 onCheckedChange = onCheckedChange,
                 onEdit = onEdit,
-                onRemove = onRemove
+                onRemove = onRemove,
+                onStartFocus = onStartFocus
             )
             TodoCalendarMode.Year -> YearCalendarView(
                 tasks = calendarTasks,
@@ -321,7 +323,8 @@ private fun MonthCalendarView(
     onSelectedDateChange: (Long) -> Unit,
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
-    onRemove: (TaskEntity) -> Unit
+    onRemove: (TaskEntity) -> Unit,
+    onStartFocus: (TaskEntity) -> Unit
 ) {
     val monthStart = startOfMonth(selectedDate)
     val gridStart = startOfWeek(monthStart)
@@ -335,7 +338,8 @@ private fun MonthCalendarView(
             onBack = { detailDay = null },
             onCheckedChange = onCheckedChange,
             onEdit = onEdit,
-            onRemove = onRemove
+            onRemove = onRemove,
+            onStartFocus = onStartFocus
         )
         return
     }
@@ -405,7 +409,8 @@ private fun MonthDayTaskPage(
     onBack: () -> Unit,
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
-    onRemove: (TaskEntity) -> Unit
+    onRemove: (TaskEntity) -> Unit,
+    onStartFocus: (TaskEntity) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -435,7 +440,8 @@ private fun MonthDayTaskPage(
                         task = task,
                         onCheckedChange = { onCheckedChange(task, it) },
                         onEdit = { onEdit(task) },
-                        onRemove = { onRemove(task) }
+                        onRemove = { onRemove(task) },
+                        onStartFocus = { onStartFocus(task) }
                     )
                 }
             }
