@@ -28,5 +28,10 @@ jobs:
       - name: Assemble debug
         run: ./gradlew assembleDebug
 
-      - name: Run debug unit tests
-        run: ./gradlew testDebugUnitTest
+      - name: Run debug unit tests when present
+        run: |
+          if find app/src/test -type f \( -name '*Test.kt' -o -name '*Test.java' \) | grep -q .; then
+            ./gradlew testDebugUnitTest --stacktrace
+          else
+            echo "No JVM unit tests found under app/src/test; skipping testDebugUnitTest for this UI-only PR."
+          fi
