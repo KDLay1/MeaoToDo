@@ -2,8 +2,10 @@ package com.kdlay.meaotodo.ui.todo
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import com.kdlay.meaotodo.ui.components.MeaoActionRow
 import com.kdlay.meaotodo.ui.components.MeaoBottomSheet
@@ -26,7 +28,7 @@ internal fun TodoTaskActionSheet(
         subtitle = task.title,
         onDismiss = onDismiss
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(10))) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!task.isDone) {
                 MeaoActionRow(
                     icon = "▶",
@@ -92,8 +94,8 @@ internal fun TodoTaskActionSheet(
             )
             Text(
                 text = "提示：复制、移动、归档和今日重点目前先作为二级菜单入口壳子，后续接入真实数据逻辑。",
-                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
