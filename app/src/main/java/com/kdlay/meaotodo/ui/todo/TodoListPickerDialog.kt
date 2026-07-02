@@ -406,16 +406,14 @@ private fun SecondarySheetAction(modifier: Modifier, icon: String, title: String
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SheetSection(title: String, content: @Composable FlowRowScopeShim.() -> Unit) {
+private fun SheetSection(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FlowRowScopeShim.content()
+            content()
         }
     }
 }
-
-private object FlowRowScopeShim
 
 @Composable
 private fun SheetChip(text: String, selected: Boolean, onClick: () -> Unit) {
