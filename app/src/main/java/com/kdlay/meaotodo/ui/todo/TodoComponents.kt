@@ -26,13 +26,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,10 +64,7 @@ internal fun TodoHeader(
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     ) {
-        Column(
-            modifier = Modifier.padding(22.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
+        Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -96,57 +97,26 @@ internal fun TodoHeader(
                     )
                 }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                MiniStat(
-                    modifier = Modifier.weight(1f),
-                    value = pendingCount.toString(),
-                    label = "待处理"
-                )
-                MiniStat(
-                    modifier = Modifier.weight(1f),
-                    value = todayCount.toString(),
-                    label = "今天"
-                )
-                MiniStat(
-                    modifier = Modifier.weight(1f),
-                    value = completedCount.toString(),
-                    label = "完成"
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MiniStat(modifier = Modifier.weight(1f), value = pendingCount.toString(), label = "待处理")
+                MiniStat(modifier = Modifier.weight(1f), value = todayCount.toString(), label = "今天")
+                MiniStat(modifier = Modifier.weight(1f), value = completedCount.toString(), label = "完成")
             }
         }
     }
 }
 
 @Composable
-private fun MiniStat(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
-) {
+private fun MiniStat(value: String, label: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.56f),
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f)
-            )
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f))
         }
     }
 }
@@ -159,17 +129,11 @@ internal fun ListSwitcher(
     onAddList: () -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         listOptions.forEach { option ->
-            ListChip(
-                option = option,
-                selected = selectedListId == option.id,
-                onClick = { onSelect(option.id) }
-            )
+            ListChip(option = option, selected = selectedListId == option.id, onClick = { onSelect(option.id) })
         }
         Surface(
             modifier = Modifier.clickable(onClick = onAddList),
@@ -188,11 +152,7 @@ internal fun ListSwitcher(
 }
 
 @Composable
-private fun ListChip(
-    option: TodoListOption,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
+private fun ListChip(option: TodoListOption, selected: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
@@ -205,26 +165,7 @@ private fun ListChip(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = option.label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-            if (option.isSystem) {
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f) else MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onTertiaryContainer
-                ) {
-                    Text(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        text = "系统",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            Text(text = option.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Surface(
                 shape = CircleShape,
                 color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
@@ -264,16 +205,12 @@ internal fun QuickAddBar(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Surface(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clickable(onClick = onOpenFullEditor),
+                modifier = Modifier.size(46.dp).clickable(onClick = onOpenFullEditor),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("+", fontSize = 30.sp, fontWeight = FontWeight.Light)
-                }
+                Box(contentAlignment = Alignment.Center) { Text("+", fontSize = 30.sp, fontWeight = FontWeight.Light) }
             }
             BasicTextField(
                 modifier = Modifier.weight(1f),
@@ -309,14 +246,19 @@ internal fun QuickAddBar(
                 }
             )
             if (canSubmit) {
-                ActionPill(text = "添加", onClick = {
-                    onSubmit()
-                    focusManager.clearFocus()
-                }, emphasis = true)
+                ActionPill(
+                    text = "添加",
+                    onClick = {
+                        onSubmit()
+                        focusManager.clearFocus()
+                    },
+                    emphasis = true
+                )
             }
         }
     }
 }
+
 @Composable
 internal fun TodoTaskList(
     groups: TodoGroups,
@@ -328,16 +270,13 @@ internal fun TodoTaskList(
     modifier: Modifier = Modifier
 ) {
     val selectedTasks = groups.tasksFor(selectedList.id)
-
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (selectedTasks.isEmpty()) {
-            item(key = "empty-${selectedList.id}") {
-                EmptyTodoCard(selectedList = selectedList)
-            }
+            item(key = "empty-${selectedList.id}") { EmptyTodoCard(selectedList = selectedList) }
         } else if (selectedList.id == SMART_ALL) {
             taskSection("已过期", groups.overdue, onCheckedChange, onEdit, onRemove, onStartFocus)
             taskSection("今天", groups.today, onCheckedChange, onEdit, onRemove, onStartFocus)
@@ -360,9 +299,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.taskSection(
 ) {
     if (tasks.isEmpty()) return
     val sectionKey = "section-$title"
-    item(key = "section-$title") {
-        SectionHeader(title = title, count = tasks.size)
-    }
+    item(key = sectionKey) { SectionHeader(title = title, count = tasks.size) }
     items(tasks, key = { task -> "$sectionKey-${task.id}" }) { task ->
         TaskRow(
             task = task,
@@ -392,45 +329,23 @@ private fun SectionHeader(title: String, count: Int) {
     }
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                modifier = Modifier.size(38.dp),
-                shape = CircleShape,
-                color = accent.copy(alpha = 0.14f),
-                contentColor = accent
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(icon, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
+            Surface(modifier = Modifier.size(38.dp), shape = CircleShape, color = accent.copy(alpha = 0.14f), contentColor = accent) {
+                Box(contentAlignment = Alignment.Center) { Text(icon, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = count.toString(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text(text = title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                Text(text = count.toString(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
             }
         }
-        Text(
-            text = if (title == "已完成") "⌄" else "⌃",
-            fontSize = 24.sp,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Text(text = if (title == "已完成") "⌄" else "⌃", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }
+
 @Composable
 internal fun EmptyTodoCard(selectedList: TodoListOption) {
     val message = when (selectedList.id) {
@@ -448,33 +363,12 @@ internal fun EmptyTodoCard(selectedList: TodoListOption) {
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
-        Column(
-            modifier = Modifier.padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    text = "Meao",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
-                )
+        Column(modifier = Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
+                Text(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), text = "Meao", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             }
-            Text(
-                text = "${selectedList.label}为空",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(text = "${selectedList.label}为空", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text = message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -487,10 +381,10 @@ internal fun TaskRow(
     onRemove: () -> Unit,
     onStartFocus: () -> Unit
 ) {
+    var showActionSheet by remember { mutableStateOf(false) }
+
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
         shape = RoundedCornerShape(18.dp),
         color = if (task.isDone) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (task.isDone) 0.14f else 0.18f)),
@@ -501,18 +395,9 @@ internal fun TaskRow(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CompleteButton(
-                checked = task.isDone,
-                onCheckedChange = onCheckedChange
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
+            CompleteButton(checked = task.isDone, onCheckedChange = onCheckedChange)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                     Text(
                         modifier = Modifier.weight(1f),
                         text = task.title,
@@ -524,12 +409,12 @@ internal fun TaskRow(
                         color = if (task.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
+                        modifier = Modifier.clickable { showActionSheet = true },
                         text = "⋮",
                         fontSize = 24.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
                 if (task.note.isNotBlank()) {
                     Text(
                         text = task.note,
@@ -539,9 +424,7 @@ internal fun TaskRow(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
                 MetadataRow(task = task)
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
@@ -550,40 +433,27 @@ internal fun TaskRow(
                     if (!task.isDone) {
                         ActionPill(text = "开始专注", onClick = onStartFocus, emphasis = true)
                     }
-                    ActionPill(text = "编辑", onClick = onEdit)
-                    if (!task.isDone) {
-                        ActionPill(text = "删除", onClick = onRemove, danger = true)
-                    }
+                    ActionPill(text = "更多", onClick = { showActionSheet = true })
                 }
             }
         }
     }
-}
-@Composable
-private fun StatusDot(priority: Int) {
-    val color = when (priority) {
-        3 -> MaterialTheme.colorScheme.secondary
-        2 -> MaterialTheme.colorScheme.primary
-        1 -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.outline
+
+    if (showActionSheet) {
+        TodoTaskActionSheet(
+            task = task,
+            onDismiss = { showActionSheet = false },
+            onEdit = onEdit,
+            onStartFocus = onStartFocus,
+            onToggleDone = { onCheckedChange(!task.isDone) },
+            onRemove = onRemove
+        )
     }
-    Surface(
-        modifier = Modifier.size(8.dp),
-        shape = CircleShape,
-        color = color
-    ) {}
 }
+
 @Composable
-private fun CompleteButton(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(28.dp)
-            .clickable { onCheckedChange(!checked) },
-        contentAlignment = Alignment.Center
-    ) {
+private fun CompleteButton(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Box(modifier = Modifier.size(28.dp).clickable { onCheckedChange(!checked) }, contentAlignment = Alignment.Center) {
         Surface(
             modifier = Modifier.size(25.dp),
             shape = CircleShape,
@@ -592,9 +462,7 @@ private fun CompleteButton(
             border = if (checked) null else BorderStroke(2.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
         ) {
             Box(contentAlignment = Alignment.Center) {
-                if (checked) {
-                    Text("✓", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
+                if (checked) Text("✓", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -609,16 +477,9 @@ private fun MetadataRow(task: TaskEntity) {
         if (task.estimatedPomodoros > 0) add("预计 ${task.estimatedPomodoros} 番茄")
         if (task.actualPomodoros > 0) add("已专注 ${task.actualPomodoros}")
     }
-
     if (metadata.isEmpty()) return
-
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        metadata.forEach { label ->
-            MetadataBadge(label = label)
-        }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        metadata.forEach { label -> MetadataBadge(label = label) }
     }
 }
 
@@ -634,33 +495,6 @@ private fun MetadataBadge(label: String) {
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun PriorityBadge(priority: Int) {
-    val color = when (priority) {
-        3 -> MaterialTheme.colorScheme.errorContainer
-        2 -> MaterialTheme.colorScheme.secondaryContainer
-        else -> MaterialTheme.colorScheme.tertiaryContainer
-    }
-    val contentColor = when (priority) {
-        3 -> MaterialTheme.colorScheme.error
-        2 -> MaterialTheme.colorScheme.onSecondaryContainer
-        else -> MaterialTheme.colorScheme.onTertiaryContainer
-    }
-
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = color,
-        contentColor = contentColor
-    ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            text = priorityLabel(priority),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
         )
     }
 }
