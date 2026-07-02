@@ -28,16 +28,16 @@ import com.kdlay.meaotodo.ui.board.BoardScreen
 import com.kdlay.meaotodo.ui.board.BoardViewModel
 import com.kdlay.meaotodo.ui.ledger.LedgerScreen
 import com.kdlay.meaotodo.ui.ledger.LedgerViewModel
-import com.kdlay.meaotodo.ui.timer.PomodoroScreen
+import com.kdlay.meaotodo.ui.timer.PomodoroTemplateScreen
 import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoScreen
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
 private enum class MainTab(val label: String, val icon: String) {
-    Today("今日", "✓"),
-    Timer("番茄", "25"),
-    Ledger("账本", "¥"),
-    Board("看板", "▦")
+    Today("今日", "☷"),
+    Timer("番茄", "⏱"),
+    Ledger("账本", "▣"),
+    Board("看板", "▤")
 }
 
 private val mainTabs = MainTab.entries.toList()
@@ -98,7 +98,7 @@ fun MeaoTodoApp(
                         selectedTab = MainTab.Timer
                     }
                 )
-                MainTab.Timer -> PomodoroScreen(
+                MainTab.Timer -> PomodoroTemplateScreen(
                     viewModel = pomodoroViewModel,
                     requestedStartTaskId = requestedPomodoroTaskId,
                     onRequestedStartTaskHandled = { requestedPomodoroTaskId = null },
