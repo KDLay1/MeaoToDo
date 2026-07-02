@@ -19,6 +19,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -30,7 +33,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,7 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +57,20 @@ import com.kdlay.meaotodo.ui.components.MeaoChoiceChip
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private enum class PomodoroTaskFilter(val label: String) {
+    All("全部"),
+    Today("今天"),
+    High("高优先级"),
+    WithPomodoro("有预计")
+}
+
+private enum class PomodoroTaskSort(val label: String) {
+    Smart("智能排序"),
+    Priority("优先级"),
+    Pomodoros("番茄数"),
+    Created("新建时间")
+}
 
 @Composable
 fun PomodoroTemplateScreen(
@@ -255,6 +273,7 @@ fun PomodoroTemplateScreen(
                 )
                 showTaskSheet = false
             },
+            onQuickAdd = viewModel::addQuickFocusTask,
             onDismiss = { showTaskSheet = false }
         )
     }
@@ -473,11 +492,11 @@ private fun PomodoroTaskListCard(
     onManage: () -> Unit
 ) {
     TemplateSectionCard(title = "今日专注任务", leading = "◎", action = "管理任务  ›", onActionClick = onManage) {
-        val visibleTasks = tasks.take(5)
+        val visibleTasks = tasks.sortedWith(taskSmartComparator()).take(5)
         if (visibleTasks.isEmpty()) {
             Text(
                 modifier = Modifier.padding(vertical = 16.dp),
-                text = "还没有可专注任务，可以先回到今日页添加一件小事。",
+                text = "还没有可专注任务，可以直接在管理任务里快速创建。",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium
             )
@@ -519,9 +538,9 @@ private fun PomodoroDurationSheet(
     onDismiss: () -> Unit,
     onApply: (Int, Int, Int) -> Unit
 ) {
-    var draftFocus by rememberSaveable(focusMinutes) { mutableIntStateOf(focusMinutes.coerceIn(1, 180)) }
-    var draftBreak by rememberSaveable(breakMinutes) { mutableIntStateOf(breakMinutes.coerceIn(1, 120)) }
-    var draftRounds by rememberSaveable(rounds) { mutableIntStateOf(rounds.coerceIn(1, 12)) }
+    var draftFocus by rememberSaveable(focusMinutes) { mutableStateOf(focusMinutes.coerceIn(1, 180)) }
+    var draftBreak by rememberSaveable(breakMinutes) { mutableStateOf(breakMinutes.coerceIn(1, 120)) }
+    var draftRounds by rememberSaveable(rounds) { mutableStateOf(rounds.coerceIn(1, 12)) }
 
     MeaoBottomSheet(
         title = "调整番茄参数",
@@ -560,23 +579,25 @@ private fun PomodoroDurationSheet(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(
-                Triple("25/5 × 4", 25, 5),
-                Triple("50/10 × 2", 50, 10),
-                Triple("15/5 × 3", 15, 5)
+                PomodoroPreset("25/5 × 4", 25, 5, 4),
+                PomodoroPreset("50/10 × 2", 50, 10, 2),
+                PomodoroPreset("15/5 × 3", 15, 5, 3)
             ).forEach { preset ->
                 MeaoChoiceChip(
-                    text = preset.first,
-                    selected = draftFocus == preset.second && draftBreak == preset.third,
+                    text = preset.label,
+                    selected = draftFocus == preset.focus && draftBreak == preset.rest && draftRounds == preset.rounds,
                     onClick = {
-                        draftFocus = preset.second
-                        draftBreak = preset.third
-                        draftRounds = if (preset.second == 50) 2 else if (preset.second == 15) 3 else 4
+                        draftFocus = preset.focus
+                        draftBreak = preset.rest
+                        draftRounds = preset.rounds
                     }
                 )
             }
         }
     }
 }
+
+private data class PomodoroPreset(val label: String, val focus: Int, val rest: Int, val rounds: Int)
 
 @Composable
 private fun NumberWheel(
@@ -634,8 +655,8 @@ private fun PomodoroStatsSheet(summary: PomodoroSummary, recentSessions: List<Po
         if (recentSessions.isEmpty()) {
             Text("暂无番茄记录。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 320.dp)) {
-                recentSessions.take(8).forEach { session ->
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 320.dp)) {
+                items(recentSessions.take(8), key = { it.id }) { session ->
                     MeaoActionRow(
                         icon = if (session.type.contains("break")) "休" else "专",
                         title = session.titleSnapshot ?: if (session.type.contains("break")) "休息" else "空白专注",
@@ -673,14 +694,53 @@ private fun PomodoroTaskManagerSheet(
     hasActiveTimer: Boolean,
     onSelect: (TaskEntity) -> Unit,
     onStart: (TaskEntity) -> Unit,
+    onQuickAdd: (String, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    MeaoBottomSheet(title = "专注任务管理", subtitle = "选择本轮目标，也可以直接从这里开始专注。", onDismiss = onDismiss) {
-        if (tasks.isEmpty()) {
-            Text("还没有可专注任务。先回到今日页添加任务。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    var search by rememberSaveable { mutableStateOf("") }
+    var filterName by rememberSaveable { mutableStateOf(PomodoroTaskFilter.All.name) }
+    var sortName by rememberSaveable { mutableStateOf(PomodoroTaskSort.Smart.name) }
+    var quickTitle by rememberSaveable { mutableStateOf("") }
+    var quickPomodoros by rememberSaveable { mutableStateOf(1) }
+    val focusManager = LocalFocusManager.current
+    val filter = PomodoroTaskFilter.valueOf(filterName)
+    val sort = PomodoroTaskSort.valueOf(sortName)
+    val visibleTasks = remember(tasks, search, filterName, sortName) {
+        filterPomodoroTasks(tasks, search, filter, sort)
+    }
+
+    MeaoBottomSheet(title = "专注任务管理", subtitle = "选择本轮目标，也可以快速创建一个临时专注任务。", onDismiss = onDismiss) {
+        QuickFocusTaskCreator(
+            title = quickTitle,
+            pomodoros = quickPomodoros,
+            onTitleChange = { quickTitle = it },
+            onPomodorosChange = { quickPomodoros = it },
+            onSubmit = {
+                val title = quickTitle.trim()
+                if (title.isNotEmpty()) {
+                    onQuickAdd(title, quickPomodoros)
+                    quickTitle = ""
+                    quickPomodoros = 1
+                    focusManager.clearFocus()
+                }
+            }
+        )
+        SearchField(value = search, onValueChange = { search = it })
+        ChipRow(title = "筛选") {
+            PomodoroTaskFilter.entries.forEach { option ->
+                MeaoChoiceChip(text = option.label, selected = option == filter, onClick = { filterName = option.name })
+            }
+        }
+        ChipRow(title = "排序") {
+            PomodoroTaskSort.entries.forEach { option ->
+                MeaoChoiceChip(text = option.label, selected = option == sort, onClick = { sortName = option.name })
+            }
+        }
+        if (visibleTasks.isEmpty()) {
+            Text("没有匹配的专注任务。可以调整筛选，或直接在上方新建。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             LazyColumn(modifier = Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(tasks, key = { it.id }) { task ->
+                items(visibleTasks, key = { it.id }) { task ->
                     PomodoroTaskManagerRow(
                         task = task,
                         selected = task.id == selectedTaskId,
@@ -691,6 +751,73 @@ private fun PomodoroTaskManagerSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun QuickFocusTaskCreator(
+    title: String,
+    pomodoros: Int,
+    onTitleChange: (String) -> Unit,
+    onPomodorosChange: (Int) -> Unit,
+    onSubmit: () -> Unit
+) {
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("快速创建专注任务", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            BasicTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = title,
+                onValueChange = onTitleChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                decorationBox = { innerTextField ->
+                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp), contentAlignment = Alignment.CenterStart) {
+                            if (title.isBlank()) {
+                                Text("例如：复习统计物理第四章", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            innerTextField()
+                        }
+                    }
+                }
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                (1..6).forEach { value ->
+                    MeaoChoiceChip(text = "$value 个", selected = value == pomodoros, onClick = { onPomodorosChange(value) })
+                }
+            }
+            PrimaryGradientPill(text = "＋  添加到专注任务", onClick = onSubmit, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun SearchField(value: String, onValueChange: (String) -> Unit) {
+    BasicTextField(
+        modifier = Modifier.fillMaxWidth(),
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        decorationBox = { innerTextField ->
+            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))) {
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), contentAlignment = Alignment.CenterStart) {
+                    if (value.isBlank()) Text("搜索专注任务", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    innerTextField()
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun ChipRow(title: String, content: @Composable Row.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { content() }
     }
 }
 
@@ -843,6 +970,47 @@ private fun priorityAccent(priority: Int): Color = when (priority) {
     2 -> MaterialTheme.colorScheme.primary
     1 -> MaterialTheme.colorScheme.tertiary
     else -> MaterialTheme.colorScheme.outline
+}
+
+private fun filterPomodoroTasks(
+    tasks: List<TaskEntity>,
+    search: String,
+    filter: PomodoroTaskFilter,
+    sort: PomodoroTaskSort
+): List<TaskEntity> {
+    val cleanSearch = search.trim()
+    return tasks
+        .asSequence()
+        .filter { task -> cleanSearch.isBlank() || task.title.contains(cleanSearch, ignoreCase = true) || task.note.contains(cleanSearch, ignoreCase = true) }
+        .filter { task ->
+            when (filter) {
+                PomodoroTaskFilter.All -> true
+                PomodoroTaskFilter.Today -> task.dueAt?.let(::isSameDayAsToday) == true
+                PomodoroTaskFilter.High -> task.priority >= 3
+                PomodoroTaskFilter.WithPomodoro -> task.estimatedPomodoros > 0
+            }
+        }
+        .toList()
+        .sortedWith(
+            when (sort) {
+                PomodoroTaskSort.Smart -> taskSmartComparator()
+                PomodoroTaskSort.Priority -> compareByDescending<TaskEntity> { it.priority }.thenByDescending { it.estimatedPomodoros }.thenByDescending { it.createdAt }
+                PomodoroTaskSort.Pomodoros -> compareByDescending<TaskEntity> { it.estimatedPomodoros }.thenByDescending { it.priority }.thenByDescending { it.createdAt }
+                PomodoroTaskSort.Created -> compareByDescending { it.createdAt }
+            }
+        )
+}
+
+private fun taskSmartComparator(): Comparator<TaskEntity> = compareByDescending<TaskEntity> { it.dueAt?.let(::isSameDayAsToday) == true }
+    .thenByDescending { it.priority }
+    .thenByDescending { it.estimatedPomodoros }
+    .thenBy { it.dueAt ?: Long.MAX_VALUE }
+    .thenByDescending { it.createdAt }
+
+private fun isSameDayAsToday(timestamp: Long): Boolean {
+    val today = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+    val target = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(timestamp))
+    return today == target
 }
 
 private fun formatPomodoroTemplateDuration(seconds: Int): String = "%02d:%02d".format(seconds / 60, seconds % 60)
