@@ -28,6 +28,7 @@ import com.kdlay.meaotodo.ui.board.BoardScreen
 import com.kdlay.meaotodo.ui.board.BoardViewModel
 import com.kdlay.meaotodo.ui.ledger.LedgerScreen
 import com.kdlay.meaotodo.ui.ledger.LedgerViewModel
+import com.kdlay.meaotodo.ui.settings.SettingsShellScreen
 import com.kdlay.meaotodo.ui.timer.PomodoroTemplateScreen
 import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoScreen
@@ -37,7 +38,8 @@ private enum class MainTab(val label: String, val icon: String) {
     Today("今日", "☷"),
     Timer("番茄", "⏱"),
     Ledger("账本", "▣"),
-    Board("看板", "▤")
+    Board("看板", "▤"),
+    Settings("设置", "设")
 }
 
 private val mainTabs = MainTab.entries.toList()
@@ -51,6 +53,7 @@ fun MeaoTodoApp(
     onTimerImmersiveModeChange: (Boolean) -> Unit = {}
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
+    var previousContentTab by rememberSaveable { mutableStateOf(MainTab.Today) }
     var isTimerImmersive by rememberSaveable { mutableStateOf(false) }
     var requestedPomodoroTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     val hideBottomBar = selectedTab == MainTab.Timer && isTimerImmersive
@@ -67,7 +70,12 @@ fun MeaoTodoApp(
                         val selected = selectedTab == tab
                         NavigationBarItem(
                             selected = selected,
-                            onClick = { selectedTab = tab },
+                            onClick = {
+                                if (tab != MainTab.Settings) {
+                                    previousContentTab = tab
+                                }
+                                selectedTab = tab
+                            },
                             icon = { MainTabIcon(tab = tab, selected = selected) },
                             label = { Text(tab.label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium) },
                             alwaysShowLabel = true,
@@ -95,6 +103,7 @@ fun MeaoTodoApp(
                     viewModel = todoViewModel,
                     onStartFocus = { task ->
                         requestedPomodoroTaskId = task.id
+                        previousContentTab = MainTab.Timer
                         selectedTab = MainTab.Timer
                     }
                 )
@@ -109,6 +118,7 @@ fun MeaoTodoApp(
                 )
                 MainTab.Ledger -> LedgerScreen(viewModel = ledgerViewModel)
                 MainTab.Board -> BoardScreen(viewModel = boardViewModel)
+                MainTab.Settings -> SettingsShellScreen(onBack = { selectedTab = previousContentTab })
             }
         }
     }
