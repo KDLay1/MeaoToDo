@@ -43,6 +43,7 @@ internal data class TodoGroups(
     val all: List<TaskEntity>,
     val overdue: List<TaskEntity>,
     val today: List<TaskEntity>,
+    val unscheduled: List<TaskEntity>,
     val inbox: List<TaskEntity>,
     val upcoming: List<TaskEntity>,
     val completed: List<TaskEntity>,
@@ -63,6 +64,7 @@ internal fun buildTodoGroups(tasks: List<TaskEntity>): TodoGroups {
     val completedTasks = tasks.filter { it.isDone }
     val overdueTasks = pendingTasks.filter { it.dueAt?.let(::isOverdue) == true }
     val todayTasks = pendingTasks.filter { it.dueAt?.let(::isToday) == true }
+    val unscheduledTasks = pendingTasks.filter { it.dueAt == null }
     val inboxTasks = pendingTasks.filter { it.listId == DEFAULT_TASK_LIST_ID }
     val upcomingTasks = pendingTasks.filter { it.dueAt?.let { dueAt -> !isOverdue(dueAt) && !isToday(dueAt) } == true }
 
@@ -70,6 +72,7 @@ internal fun buildTodoGroups(tasks: List<TaskEntity>): TodoGroups {
         all = tasks,
         overdue = overdueTasks,
         today = todayTasks,
+        unscheduled = unscheduledTasks,
         inbox = inboxTasks,
         upcoming = upcomingTasks,
         completed = completedTasks,

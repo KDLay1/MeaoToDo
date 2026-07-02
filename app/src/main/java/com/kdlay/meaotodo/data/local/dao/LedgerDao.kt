@@ -14,6 +14,9 @@ interface LedgerDao {
     @Query("SELECT COALESCE(SUM(amountCents), 0) FROM ledger_entries WHERE type = 'expense' AND deletedAt IS NULL AND occurredAt BETWEEN :startAt AND :endAt")
     fun observeExpenseSum(startAt: Long, endAt: Long): Flow<Long>
 
+    @Query("SELECT * FROM ledger_entries WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): LedgerEntryEntity?
+
     @Upsert
     suspend fun upsert(entry: LedgerEntryEntity)
 

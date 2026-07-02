@@ -14,7 +14,8 @@ import kotlinx.serialization.json.Json
 class PomodoroRepository(
     private val pomodoroDao: PomodoroDao,
     private val pomodoroRunDao: PomodoroRunDao,
-    private val syncOutboxDao: SyncOutboxDao
+    private val syncOutboxDao: SyncOutboxDao,
+    private val taskRepository: TaskRepository? = null
 ) {
     val sessions = pomodoroDao.observeSessions()
     val recentSessions = pomodoroDao.observeRecentSessions(limit = 12)
@@ -232,6 +233,7 @@ class PomodoroRepository(
         )
         pomodoroRunDao.upsert(updatedRun)
         pomodoroDao.upsert(breakSession)
+        completedSession.taskId?.let { taskRepository?.incrementActualPomodoros(it) }
         enqueueRunChange(run = updatedRun, operation = "upsert", createdAt = now)
         enqueueSessionChange(session = breakSession, operation = "upsert", createdAt = now)
     }

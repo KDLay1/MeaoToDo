@@ -22,4 +22,7 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET deletedAt = :deletedAt, updatedAt = :deletedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long)
+
+    @Query("UPDATE tasks SET actualPomodoros = actualPomodoros + :count, updatedAt = :updatedAt WHERE id = :id AND deletedAt IS NULL")
+    suspend fun incrementActualPomodoros(id: String, count: Int, updatedAt: Long)
 }

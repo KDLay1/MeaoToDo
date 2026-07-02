@@ -73,17 +73,18 @@ fun PomodoroScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val snackbarHostState = remember { SnackbarHostState() }
-    var selectedDurationMinutes by rememberSaveable { mutableIntStateOf(25) }
-    var selectedBreakDurationMinutes by rememberSaveable { mutableIntStateOf(5) }
-    var targetFocusCount by rememberSaveable { mutableIntStateOf(1) }
     var selectedTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     var showTaskPicker by remember { mutableStateOf(false) }
     var showDurationWheel by remember { mutableStateOf(false) }
     var showBreakDurationWheel by remember { mutableStateOf(false) }
     var showSummary by remember { mutableStateOf(false) }
+    var showCancelConfirmation by remember { mutableStateOf(false) }
     var isImmersiveMode by rememberSaveable { mutableStateOf(false) }
     var suppressLandscapeAutoImmersion by rememberSaveable { mutableStateOf(false) }
-    var clockStyle by rememberSaveable { mutableStateOf(CLOCK_STYLE_DIGITAL) }
+    val selectedDurationMinutes = uiState.preferences.focusDurationMinutes
+    val selectedBreakDurationMinutes = uiState.preferences.breakDurationMinutes
+    val targetFocusCount = uiState.preferences.targetFocusCount
+    val clockStyle = uiState.preferences.clockStyle
     val hasActiveTimer = uiState.activeSession != null
 
     fun enterImmersiveMode() {
@@ -155,9 +156,9 @@ fun PomodoroScreen(
                     selectedBreakDurationMinutes = selectedBreakDurationMinutes,
                     targetFocusCount = targetFocusCount,
                     summary = uiState.summary,
-                    onDurationChange = { selectedDurationMinutes = it },
-                    onBreakDurationChange = { selectedBreakDurationMinutes = it },
-                    onTargetFocusCountChange = { targetFocusCount = it },
+                    onDurationChange = viewModel::updateFocusDurationMinutes,
+                    onBreakDurationChange = viewModel::updateBreakDurationMinutes,
+                    onTargetFocusCountChange = viewModel::updateTargetFocusCount,
                     onPickTask = { showTaskPicker = true },
                     onOpenDurationWheel = { showDurationWheel = true },
                     onOpenBreakDurationWheel = { showBreakDurationWheel = true },
@@ -179,14 +180,12 @@ fun PomodoroScreen(
                     clockStyle = clockStyle,
                     onEnterImmersiveMode = ::enterImmersiveMode,
                     onExitImmersiveMode = ::exitImmersiveMode,
-                    onToggleClockStyle = {
-                        clockStyle = if (clockStyle == CLOCK_STYLE_FLIP) CLOCK_STYLE_DIGITAL else CLOCK_STYLE_FLIP
-                    },
+                    onToggleClockStyle = viewModel::toggleClockStyle,
                     onPause = viewModel::pause,
                     onResume = viewModel::resume,
                     onCompleteCurrentSession = viewModel::completeCurrentSession,
                     onSkipBreak = viewModel::skipBreak,
-                    onCancel = viewModel::cancel,
+                    onCancel = { showCancelConfirmation = true },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -211,7 +210,7 @@ fun PomodoroScreen(
             wheelDurations = listOf(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 120),
             onDismiss = { showDurationWheel = false },
             onConfirm = { duration ->
-                selectedDurationMinutes = duration
+                viewModel.updateFocusDurationMinutes(duration)
                 showDurationWheel = false
             }
         )
@@ -225,7 +224,7 @@ fun PomodoroScreen(
             wheelDurations = listOf(1, 3, 5, 8, 10, 12, 15, 20, 25, 30),
             onDismiss = { showBreakDurationWheel = false },
             onConfirm = { duration ->
-                selectedBreakDurationMinutes = duration
+                viewModel.updateBreakDurationMinutes(duration)
                 showBreakDurationWheel = false
             }
         )
@@ -236,6 +235,30 @@ fun PomodoroScreen(
             summary = uiState.summary,
             recentSessions = uiState.recentSessions,
             onDismiss = { showSummary = false }
+        )
+    }
+    if (showCancelConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmation = false },
+            title = { Text("放弃本轮？", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    text = "当前番茄钟会记录为中断，已完成的番茄不会被撤回。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCancelConfirmation = false
+                        viewModel.cancel()
+                    }
+                ) { Text("确认放弃") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelConfirmation = false }) { Text("继续专注") }
+            }
         )
     }
 }

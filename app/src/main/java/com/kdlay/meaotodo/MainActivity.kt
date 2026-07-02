@@ -7,6 +7,8 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.ViewModelProvider
 import com.kdlay.meaotodo.core.AppContainer
 import com.kdlay.meaotodo.ui.MeaoTodoApp
+import com.kdlay.meaotodo.ui.board.BoardViewModel
+import com.kdlay.meaotodo.ui.ledger.LedgerViewModel
 import com.kdlay.meaotodo.ui.theme.MeaoTodoTheme
 import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
@@ -21,14 +23,24 @@ class MainActivity : ComponentActivity() {
         )[TodoViewModel::class.java]
         val pomodoroViewModel = ViewModelProvider(
             this,
-            PomodoroViewModel.factory(appContainer.pomodoroRepository, appContainer.taskRepository)
+            PomodoroViewModel.factory(appContainer.pomodoroRepository, appContainer.settingsStore, appContainer.taskRepository)
         )[PomodoroViewModel::class.java]
+        val ledgerViewModel = ViewModelProvider(
+            this,
+            LedgerViewModel.factory(appContainer.ledgerRepository)
+        )[LedgerViewModel::class.java]
+        val boardViewModel = ViewModelProvider(
+            this,
+            BoardViewModel.factory(appContainer.taskRepository, appContainer.pomodoroRepository, appContainer.ledgerRepository)
+        )[BoardViewModel::class.java]
 
         setContent {
             MeaoTodoTheme {
                 MeaoTodoApp(
                     todoViewModel = todoViewModel,
                     pomodoroViewModel = pomodoroViewModel,
+                    ledgerViewModel = ledgerViewModel,
+                    boardViewModel = boardViewModel,
                     onTimerImmersiveModeChange = { isImmersive ->
                         requestedOrientation = if (isImmersive) {
                             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE

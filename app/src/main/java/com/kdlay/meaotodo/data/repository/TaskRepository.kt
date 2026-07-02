@@ -86,6 +86,15 @@ class TaskRepository(
         return true
     }
 
+    suspend fun incrementActualPomodoros(id: String, count: Int = 1): Boolean {
+        if (count <= 0) return false
+        val now = System.currentTimeMillis()
+        taskDao.incrementActualPomodoros(id = id, count = count, updatedAt = now)
+        val updated = taskDao.findById(id) ?: return false
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
+    }
+
     private suspend fun enqueueChange(task: TaskEntity, operation: String, createdAt: Long) {
         syncOutboxDao.enqueue(
             SyncOutboxEntity(

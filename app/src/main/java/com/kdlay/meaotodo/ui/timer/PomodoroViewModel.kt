@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.kdlay.meaotodo.data.local.entity.PomodoroRunEntity
 import com.kdlay.meaotodo.data.local.entity.PomodoroSessionEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
+import com.kdlay.meaotodo.core.settings.AppSettingsStore
+import com.kdlay.meaotodo.core.settings.PomodoroPreferences
 import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.data.repository.TaskRepository
 import java.util.Calendar
@@ -22,6 +24,7 @@ import kotlinx.coroutines.launch
 
 class PomodoroViewModel(
     private val pomodoroRepository: PomodoroRepository,
+    private val settingsStore: AppSettingsStore,
     taskRepository: TaskRepository
 ) : ViewModel() {
     private val nowMillis = MutableStateFlow(System.currentTimeMillis())
@@ -31,20 +34,27 @@ class PomodoroViewModel(
         initialValue = emptyList()
     )
 
+    private val timerConfigState = combine(
+        nowMillis,
+        settingsStore.pomodoroPreferences
+    ) { now, preferences -> now to preferences }
+
     val uiState: StateFlow<PomodoroUiState> = combine(
         pomodoroRepository.activeSession,
         pomodoroRepository.activeRun,
         pomodoroRepository.sessions,
         tasksState,
-        nowMillis
-    ) { activeSession, activeRun, sessions, tasks, now ->
+        timerConfigState
+    ) { activeSession, activeRun, sessions, tasks, timerConfig ->
+        val (now, preferences) = timerConfig
         PomodoroUiState(
             activeSession = activeSession,
             activeRun = activeRun,
             tasks = tasks,
             recentSessions = sessions.take(10),
             summary = buildTodaySummary(sessions, now),
-            nowMillis = now
+            nowMillis = now,
+            preferences = preferences
         )
     }.stateIn(
         scope = viewModelScope,
@@ -66,6 +76,34 @@ class PomodoroViewModel(
         }
     }
 
+    fun updateFocusDurationMinutes(minutes: Int) {
+        viewModelScope.launch {
+            settingsStore.setPomodoroFocusDurationMinutes(minutes)
+        }
+    }
+
+    fun updateBreakDurationMinutes(minutes: Int) {
+        viewModelScope.launch {
+            settingsStore.setPomodoroBreakDurationMinutes(minutes)
+        }
+    }
+
+    fun updateTargetFocusCount(count: Int) {
+        viewModelScope.launch {
+            settingsStore.setPomodoroTargetFocusCount(count)
+        }
+    }
+
+    fun toggleClockStyle() {
+        viewModelScope.launch {
+            val nextStyle = if (uiState.value.preferences.clockStyle == PomodoroPreferences.CLOCK_STYLE_FLIP) {
+                PomodoroPreferences.DEFAULT_CLOCK_STYLE
+            } else {
+                PomodoroPreferences.CLOCK_STYLE_FLIP
+            }
+            settingsStore.setPomodoroClockStyle(nextStyle)
+        }
+    }
     fun start(
         taskId: String?,
         durationMinutes: Int,
@@ -133,12 +171,13 @@ class PomodoroViewModel(
     companion object {
         fun factory(
             pomodoroRepository: PomodoroRepository,
+            settingsStore: AppSettingsStore,
             taskRepository: TaskRepository
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(PomodoroViewModel::class.java))
-                return PomodoroViewModel(pomodoroRepository, taskRepository) as T
+                return PomodoroViewModel(pomodoroRepository, settingsStore, taskRepository) as T
             }
         }
     }
@@ -150,7 +189,8 @@ data class PomodoroUiState(
     val tasks: List<TaskEntity> = emptyList(),
     val recentSessions: List<PomodoroSessionEntity> = emptyList(),
     val summary: PomodoroSummary = PomodoroSummary(),
-    val nowMillis: Long = System.currentTimeMillis()
+    val nowMillis: Long = System.currentTimeMillis(),
+    val preferences: PomodoroPreferences = PomodoroPreferences()
 ) {
     val isRunning: Boolean
         get() = activeSession?.status == PomodoroRepository.STATUS_RUNNING

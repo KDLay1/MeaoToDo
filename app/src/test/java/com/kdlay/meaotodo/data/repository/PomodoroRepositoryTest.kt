@@ -3,9 +3,11 @@ package com.kdlay.meaotodo.data.repository
 import com.kdlay.meaotodo.data.local.dao.PomodoroDao
 import com.kdlay.meaotodo.data.local.dao.PomodoroRunDao
 import com.kdlay.meaotodo.data.local.dao.SyncOutboxDao
+import com.kdlay.meaotodo.data.local.dao.TaskDao
 import com.kdlay.meaotodo.data.local.entity.PomodoroRunEntity
 import com.kdlay.meaotodo.data.local.entity.PomodoroSessionEntity
 import com.kdlay.meaotodo.data.local.entity.SyncOutboxEntity
+import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
@@ -266,6 +268,34 @@ class PomodoroRepositoryTest {
         assertEquals(2, nextFocus.roundIndex)
     }
 
+
+    @Test
+    fun advanceIfNeeded_whenBoundFocusFinishes_incrementsTaskActualPomodoros() = runTest {
+        val taskDao = FakeTaskDao()
+        taskDao.upsert(
+            TaskEntity(
+                id = "task-1",
+                title = "Read",
+                createdAt = 1L,
+                updatedAt = 1L
+            )
+        )
+        repository = PomodoroRepository(
+            pomodoroDao = pomodoroDao,
+            pomodoroRunDao = pomodoroRunDao,
+            syncOutboxDao = syncOutboxDao,
+            taskRepository = TaskRepository(taskDao, syncOutboxDao)
+        )
+
+        assertTrue(repository.startRun("task-1", "Read", focusDurationSeconds = 25 * 60, targetFocusCount = 1))
+        val focus = requireNotNullForTest(pomodoroDao.activeSessionOrNull())
+
+        assertTrue(repository.advanceIfNeeded(now = focus.finishedAtByPlan()))
+
+        assertEquals(1, requireNotNullForTest(taskDao.findById("task-1")).actualPomodoros)
+        assertTrue(syncOutboxDao.allPending().any { it.entityType == "task" && it.entityId == "task-1" })
+    }
+
     private suspend fun advanceActiveSessionToPlannedEnd() {
         val active = requireNotNullForTest(pomodoroDao.activeSessionOrNull())
         val advanced = repository.advanceIfNeeded(now = active.finishedAtByPlan())
@@ -327,6 +357,33 @@ class PomodoroRepositoryTest {
         fun activeRunOrNull(): PomodoroRunEntity? = runs.values
             .filter { it.deletedAt == null && it.status in ACTIVE_STATUSES }
             .maxWithOrNull(compareBy<PomodoroRunEntity> { it.startedAt }.thenBy { it.updatedAt })
+    }
+
+
+    private class FakeTaskDao : TaskDao {
+        private val tasks = linkedMapOf<String, TaskEntity>()
+
+        override fun observeActiveTasks(): Flow<List<TaskEntity>> = flow {
+            emit(tasks.values.filter { it.deletedAt == null }.sortedByDescending { it.updatedAt })
+        }
+
+        override suspend fun findById(id: String): TaskEntity? = tasks[id]
+
+        override suspend fun upsert(task: TaskEntity) {
+            tasks[task.id] = task
+        }
+
+        override suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long) {
+            tasks[id]?.let { tasks[id] = it.copy(isDone = isDone, updatedAt = updatedAt) }
+        }
+
+        override suspend fun softDelete(id: String, deletedAt: Long) {
+            tasks[id]?.let { tasks[id] = it.copy(deletedAt = deletedAt, updatedAt = deletedAt) }
+        }
+
+        override suspend fun incrementActualPomodoros(id: String, count: Int, updatedAt: Long) {
+            tasks[id]?.let { tasks[id] = it.copy(actualPomodoros = it.actualPomodoros + count, updatedAt = updatedAt) }
+        }
     }
 
     private class FakeSyncOutboxDao : SyncOutboxDao {
