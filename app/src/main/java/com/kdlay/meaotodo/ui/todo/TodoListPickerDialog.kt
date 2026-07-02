@@ -89,7 +89,11 @@ internal fun applyTodoFilterAndSort(groups: TodoGroups, filterState: TodoFilterS
 
 private fun sortTasks(tasks: List<TaskEntity>, sortMode: TodoSortMode): List<TaskEntity> = when (sortMode) {
     TodoSortMode.Time -> tasks.sortedWith(taskTimeComparator())
-    TodoSortMode.Priority -> tasks.sortedWith(compareByDescending<TaskEntity> { it.priority }.then(taskTimeComparator()))
+    TodoSortMode.Priority -> tasks.sortedWith(
+        compareByDescending<TaskEntity> { it.priority }
+            .thenBy { !it.hasDueTime }
+            .thenBy { it.dueAt ?: Long.MAX_VALUE }
+    )
     TodoSortMode.Created -> tasks.sortedByDescending { it.createdAt }
     TodoSortMode.Manual -> tasks
 }
