@@ -1,8 +1,11 @@
 package com.kdlay.meaotodo.ui.ledger
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -10,8 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -29,22 +35,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kdlay.meaotodo.data.local.entity.LedgerEntryEntity
-import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
 
-private val ledgerCategories = listOf(
-    "\u9910\u996e",
-    "\u4ea4\u901a",
-    "\u5b66\u4e60",
-    "\u751f\u6d3b",
-    "\u6570\u7801",
-    "\u5176\u4ed6"
+private val ledgerCategories = listOf("餐饮", "学习", "交通", "咖啡", "生活", "其他")
+private val ledgerCategoryIcons = mapOf(
+    "餐饮" to "🍴",
+    "学习" to "▤",
+    "交通" to "▣",
+    "咖啡" to "☕",
+    "生活" to "⌂",
+    "其他" to "••"
+)
+private val ledgerChartColors = listOf(
+    Color(0xFF8E8BFF),
+    Color(0xFFFFC39A),
+    Color(0xFF6B86FF),
+    Color(0xFF9ADBC5),
+    Color(0xFFFFA977),
+    Color(0xFFD9D5C9)
 )
 
 @Composable
@@ -70,15 +92,33 @@ fun LedgerScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item { LedgerTopHeader(uiState = uiState) }
+            item { CategorySummaryRow(uiState = uiState) }
+            item { MonthOverviewCard(uiState = uiState) }
             item {
-                LedgerHeader(uiState = uiState)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("最近流水", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("支出 ${formatMoney(uiState.todayExpenseCents)}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
+                }
+            }
+            if (uiState.entries.isEmpty()) {
+                item { EmptyLedgerCard() }
+            } else {
+                items(uiState.entries, key = { it.id }) { entry ->
+                    LedgerEntryRow(entry = entry, onRemove = { viewModel.removeEntry(entry) })
+                }
             }
             item {
-                ExpenseEditor(
+                QuickLedgerEntryCard(
                     amountText = amountText,
                     selectedCategory = selectedCategory,
                     note = note,
@@ -92,67 +132,152 @@ fun LedgerScreen(
                     }
                 )
             }
-            item {
-                Text(
-                    text = "\u6700\u8fd1\u6d41\u6c34",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            if (uiState.entries.isEmpty()) {
-                item { EmptyLedgerCard() }
-            } else {
-                items(uiState.entries, key = { it.id }) { entry ->
-                    LedgerEntryRow(entry = entry, onRemove = { viewModel.removeEntry(entry) })
-                }
-            }
         }
     }
 }
 
 @Composable
-private fun LedgerHeader(uiState: LedgerUiState) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("\u8d26\u672c", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LedgerStatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "\u4eca\u65e5\u652f\u51fa",
-                    amount = formatMoney(uiState.todayExpenseCents)
-                )
-                LedgerStatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "\u672c\u6708\u652f\u51fa",
-                    amount = formatMoney(uiState.monthExpenseCents)
-                )
+private fun LedgerTopHeader(uiState: LedgerUiState) {
+    val monthExpense = uiState.monthExpenseCents
+    val incomeCents = 0L
+    val balance = incomeCents - monthExpense
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("MeaoToDo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Text("⌕", fontSize = 30.sp, color = MaterialTheme.colorScheme.onBackground)
+                Text("⋮", fontSize = 28.sp, color = MaterialTheme.colorScheme.onBackground)
             }
+        }
+        Text("账本", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("本月支出 ${formatMoney(monthExpense)}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+            Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("收入 ${formatMoney(incomeCents)}", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("结余 ${formatMoney(balance)}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
 @Composable
-private fun LedgerStatCard(title: String, amount: String, modifier: Modifier = Modifier) {
+private fun CategorySummaryRow(uiState: LedgerUiState) {
+    val monthTotal = uiState.monthExpenseCents.coerceAtLeast(1)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        ledgerCategories.take(4).forEach { category ->
+            val total = uiState.entries.filter { it.category == category }.sumOf { it.amountCents }
+            val percent = ((total * 100f) / monthTotal).roundToInt().coerceAtLeast(0)
+            CategorySummaryCard(
+                modifier = Modifier.weight(1f),
+                category = category,
+                amount = total,
+                percent = percent
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategorySummaryCard(modifier: Modifier, category: String, amount: Long, percent: Int) {
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f)
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f))
-            Text(amount, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)) {
+                Text(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), text = ledgerCategoryIcons[category] ?: "•", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+            Text(category, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(formatMoney(amount), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text("$percent%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+private fun MonthOverviewCard(uiState: LedgerUiState) {
+    val totals = ledgerCategories.map { category -> uiState.entries.filter { it.category == category }.sumOf { it.amountCents } }
+    val total = totals.sum().takeIf { it > 0 } ?: uiState.monthExpenseCents
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("六月概览", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Surface(shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.24f))) {
+                    Text(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), text = "2025年6月⌄", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+                    DonutChart(totals = totals, total = total)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("支出总计", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(formatMoney(total), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    ledgerCategories.take(5).forEachIndexed { index, category ->
+                        val amount = totals.getOrElse(index) { 0L }
+                        val percent = if (total > 0) amount * 100f / total else 0f
+                        LegendLine(color = ledgerChartColors[index % ledgerChartColors.size], category = category, percent = percent, amount = amount)
+                    }
+                }
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+            ) {
+                Text(modifier = Modifier.padding(14.dp), text = "查看分类详情  ›", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DonutChart(totals: List<Long>, total: Long) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val stroke = Stroke(width = 24.dp.toPx(), cap = StrokeCap.Butt)
+        drawCircle(color = Color(0xFFF0F1F7), style = stroke)
+        var startAngle = -90f
+        totals.forEachIndexed { index, value ->
+            val sweep = if (total > 0) (value.toFloat() / total.toFloat()) * 360f else 0f
+            if (sweep > 0f) {
+                drawArc(
+                    color = ledgerChartColors[index % ledgerChartColors.size],
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    style = stroke
+                )
+                startAngle += sweep
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendLine(color: Color, category: String, percent: Float, amount: Long) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(modifier = Modifier.size(9.dp), shape = CircleShape, color = color) {}
+        Text(category, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Text("%.1f%%".format(percent), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(formatMoney(amount), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ExpenseEditor(
+private fun QuickLedgerEntryCard(
     amountText: String,
     selectedCategory: String,
     note: String,
@@ -163,40 +288,44 @@ private fun ExpenseEditor(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
-        tonalElevation = 1.dp
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("\u5feb\u901f\u8bb0\u4e00\u7b14", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
+                    Box(contentAlignment = Alignment.Center) { Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light) }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("记录一笔收支", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("快速记账，轻松管理", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = amountText,
                 onValueChange = onAmountChange,
-                label = { Text("\u91d1\u989d") },
-                prefix = { Text("\u00a5") },
+                label = { Text("金额") },
+                prefix = { Text("¥") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ledgerCategories.forEach { category ->
-                    CategoryChip(
-                        text = category,
-                        selected = selectedCategory == category,
-                        onClick = { onCategoryChange(category) }
-                    )
+                    CategoryChip(text = category, selected = selectedCategory == category, onClick = { onCategoryChange(category) })
                 }
             }
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = note,
                 onValueChange = onNoteChange,
-                label = { Text("\u5907\u6ce8") },
+                label = { Text("备注，可选") },
                 singleLine = true
             )
             Button(modifier = Modifier.fillMaxWidth(), onClick = onSave) {
-                Text("\u8bb0\u5f55\u652f\u51fa", fontWeight = FontWeight.Bold)
+                Text("保存记录", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -206,17 +335,12 @@ private fun ExpenseEditor(
 private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.large,
-        color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = if (selected) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurfaceVariant,
-        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.24f))
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.54f),
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), text = text, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -224,15 +348,15 @@ private fun CategoryChip(text: String, selected: Boolean, onClick: () -> Unit) {
 private fun EmptyLedgerCard() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
     ) {
-        Text(
-            modifier = Modifier.padding(24.dp),
-            text = "\u8fd8\u6ca1\u6709\u8d26\u672c\u8bb0\u5f55\uff0c\u5148\u8bb0\u4e0b\u4eca\u5929\u7684\u7b2c\u4e00\u7b14\u652f\u51fa\u3002",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(modifier = Modifier.padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("▣", fontSize = 34.sp, color = MaterialTheme.colorScheme.primary)
+            Text("暂无流水", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("从下方记录第一笔收支。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -240,38 +364,30 @@ private fun EmptyLedgerCard() {
 private fun LedgerEntryRow(entry: LedgerEntryEntity, onRemove: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        shadowElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(entry.category, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    text = entry.note.ifBlank { formatDate(entry.occurredAt) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(modifier = Modifier.size(48.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(ledgerCategoryIcons[entry.category] ?: "•", color = MaterialTheme.colorScheme.primary, fontSize = 22.sp)
+                }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(formatMoney(entry.amountCents), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text(
-                    modifier = Modifier.clickable(onClick = onRemove),
-                    text = "\u5220\u9664",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(entry.note.ifBlank { entry.category }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(formatLedgerDate(entry.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("- ${formatMoney(entry.amountCents)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.76f)) {
+                    Text(modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp), text = entry.category, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                }
+                Text(modifier = Modifier.clickable(onClick = onRemove), text = "删除", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
         }
     }
 }
 
-private fun formatDate(timestamp: Long): String = DateFormat.getDateTimeInstance(
-    DateFormat.SHORT,
-    DateFormat.SHORT
-).format(Date(timestamp))
+private fun formatLedgerDate(timestamp: Long): String = SimpleDateFormat("M月d日 HH:mm", Locale.getDefault()).format(Date(timestamp))
