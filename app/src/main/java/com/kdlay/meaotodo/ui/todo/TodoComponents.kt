@@ -263,10 +263,15 @@ internal fun QuickAddBar(
 internal fun TodoTaskList(
     groups: TodoGroups,
     selectedList: TodoListOption,
+    listOptions: List<TodoListOption>,
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
     onRemove: (TaskEntity) -> Unit,
     onStartFocus: (TaskEntity) -> Unit,
+    onDuplicate: (TaskEntity) -> Unit,
+    onMove: (TaskEntity, String) -> Unit,
+    onArchive: (TaskEntity) -> Unit,
+    onPinToday: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val selectedTasks = groups.tasksFor(selectedList.id)
@@ -278,13 +283,13 @@ internal fun TodoTaskList(
         if (selectedTasks.isEmpty()) {
             item(key = "empty-${selectedList.id}") { EmptyTodoCard(selectedList = selectedList) }
         } else if (selectedList.id == SMART_ALL) {
-            taskSection("已过期", groups.overdue, onCheckedChange, onEdit, onRemove, onStartFocus)
-            taskSection("今天", groups.today, onCheckedChange, onEdit, onRemove, onStartFocus)
-            taskSection("无日期", groups.unscheduled, onCheckedChange, onEdit, onRemove, onStartFocus)
-            taskSection("未来", groups.upcoming, onCheckedChange, onEdit, onRemove, onStartFocus)
-            taskSection("已完成", groups.completed, onCheckedChange, onEdit, onRemove, onStartFocus)
+            taskSection("已过期", groups.overdue, listOptions, onCheckedChange, onEdit, onRemove, onStartFocus, onDuplicate, onMove, onArchive, onPinToday)
+            taskSection("今天", groups.today, listOptions, onCheckedChange, onEdit, onRemove, onStartFocus, onDuplicate, onMove, onArchive, onPinToday)
+            taskSection("无日期", groups.unscheduled, listOptions, onCheckedChange, onEdit, onRemove, onStartFocus, onDuplicate, onMove, onArchive, onPinToday)
+            taskSection("未来", groups.upcoming, listOptions, onCheckedChange, onEdit, onRemove, onStartFocus, onDuplicate, onMove, onArchive, onPinToday)
+            taskSection("已完成", groups.completed, listOptions, onCheckedChange, onEdit, onRemove, onStartFocus, onDuplicate, onMove, onArchive, onPinToday)
         } else {
-            taskSection(selectedList.label, selectedTasks, onCheckedChange, onEdit, onRemove, onStartFocus)
+            taskSection(selectedList.label, selectedTasks, listOptions, onCheckedChange, onEdit, onRemove, onStartFocus, onDuplicate, onMove, onArchive, onPinToday)
         }
     }
 }
@@ -292,10 +297,15 @@ internal fun TodoTaskList(
 private fun androidx.compose.foundation.lazy.LazyListScope.taskSection(
     title: String,
     tasks: List<TaskEntity>,
+    listOptions: List<TodoListOption>,
     onCheckedChange: (TaskEntity, Boolean) -> Unit,
     onEdit: (TaskEntity) -> Unit,
     onRemove: (TaskEntity) -> Unit,
-    onStartFocus: (TaskEntity) -> Unit
+    onStartFocus: (TaskEntity) -> Unit,
+    onDuplicate: (TaskEntity) -> Unit,
+    onMove: (TaskEntity, String) -> Unit,
+    onArchive: (TaskEntity) -> Unit,
+    onPinToday: (TaskEntity) -> Unit
 ) {
     if (tasks.isEmpty()) return
     val sectionKey = "section-$title"
@@ -303,10 +313,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.taskSection(
     items(tasks, key = { task -> "$sectionKey-${task.id}" }) { task ->
         TaskRow(
             task = task,
+            listOptions = listOptions,
             onCheckedChange = { isDone -> onCheckedChange(task, isDone) },
             onEdit = { onEdit(task) },
             onRemove = { onRemove(task) },
-            onStartFocus = { onStartFocus(task) }
+            onStartFocus = { onStartFocus(task) },
+            onDuplicate = { onDuplicate(task) },
+            onMove = { targetListId -> onMove(task, targetListId) },
+            onArchive = { onArchive(task) },
+            onPinToday = { onPinToday(task) }
         )
     }
 }
@@ -376,10 +391,15 @@ internal fun EmptyTodoCard(selectedList: TodoListOption) {
 @Composable
 internal fun TaskRow(
     task: TaskEntity,
+    listOptions: List<TodoListOption>,
     onCheckedChange: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onRemove: () -> Unit,
-    onStartFocus: () -> Unit
+    onStartFocus: () -> Unit,
+    onDuplicate: () -> Unit,
+    onMove: (String) -> Unit,
+    onArchive: () -> Unit,
+    onPinToday: () -> Unit
 ) {
     var showActionSheet by remember { mutableStateOf(false) }
 
@@ -442,11 +462,16 @@ internal fun TaskRow(
     if (showActionSheet) {
         TodoTaskActionSheet(
             task = task,
+            listOptions = listOptions,
             onDismiss = { showActionSheet = false },
             onEdit = onEdit,
             onStartFocus = onStartFocus,
             onToggleDone = { onCheckedChange(!task.isDone) },
-            onRemove = onRemove
+            onRemove = onRemove,
+            onDuplicate = onDuplicate,
+            onMoveToList = onMove,
+            onArchive = onArchive,
+            onPinToday = onPinToday
         )
     }
 }
