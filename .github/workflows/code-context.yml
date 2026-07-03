@@ -1,0 +1,33 @@
+name: Code Context Export
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - develop/**
+    paths:
+      - 'app/src/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'app/build.gradle.kts'
+      - '.github/workflows/**'
+      - 'tools/export_code_context.py'
+
+jobs:
+  export-code-context:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Export code context
+        run: python3 tools/export_code_context.py
+
+      - name: Upload code context artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-context-${{ github.sha }}
+          path: build/code-context/code_context.md
+          retention-days: 7

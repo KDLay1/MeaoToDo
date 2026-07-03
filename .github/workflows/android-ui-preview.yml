@@ -1,0 +1,86 @@
+name: Android UI Preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - develop/**
+    paths:
+      - 'app/src/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'app/build.gradle.kts'
+      - '.github/workflows/android-ui-preview.yml'
+
+jobs:
+  ui-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Capture UI screenshots
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            set -euo pipefail
+            mkdir -p build/ui-preview
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n com.kdlay.meaotodo/.MainActivity
+            sleep 5
+            adb exec-out screencap -p > build/ui-preview/01-todo.png
+
+            # Bottom navigation taps for a Pixel 6 emulator in portrait.
+            adb shell input tap 324 2280
+            sleep 2
+            adb exec-out screencap -p > build/ui-preview/02-pomodoro.png
+
+            adb shell input tap 540 2280
+            sleep 2
+            adb exec-out screencap -p > build/ui-preview/03-ledger.png
+
+            adb shell input tap 756 2280
+            sleep 2
+            adb exec-out screencap -p > build/ui-preview/04-board.png
+
+            adb shell input tap 972 2280
+            sleep 2
+            adb exec-out screencap -p > build/ui-preview/05-settings.png
+
+            # Open Todo again and capture the list picker/menu entry if possible.
+            adb shell input tap 108 2280
+            sleep 1
+            adb exec-out screencap -p > build/ui-preview/06-todo-return.png
+
+      - name: Upload UI screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-preview-${{ github.sha }}
+          path: build/ui-preview/*.png
+          retention-days: 7
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7

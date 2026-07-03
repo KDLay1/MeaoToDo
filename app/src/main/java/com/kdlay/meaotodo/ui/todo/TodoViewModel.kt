@@ -3,6 +3,7 @@ package com.kdlay.meaotodo.ui.todo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kdlay.meaotodo.data.local.entity.DEFAULT_TASK_LIST_ID
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import com.kdlay.meaotodo.data.local.entity.TaskListEntity
 import com.kdlay.meaotodo.data.repository.TaskListRepository
@@ -51,9 +52,29 @@ class TodoViewModel(
 
     fun renameTaskList(id: String, name: String) {
         viewModelScope.launch {
-            if (!taskListRepository.renameList(id, name)) {
+            if (taskListRepository.renameList(id, name)) {
+                _messages.emit("清单已重命名")
+            } else {
                 _messages.emit("清单重命名失败")
             }
+        }
+    }
+
+    fun removeTaskList(id: String) {
+        viewModelScope.launch {
+            if (id == DEFAULT_TASK_LIST_ID) {
+                _messages.emit("收集箱不能删除")
+                return@launch
+            }
+            val movedCount = taskRepository.moveTasksFromList(id, DEFAULT_TASK_LIST_ID)
+            val removed = taskListRepository.removeList(id)
+            _messages.emit(
+                if (removed) {
+                    if (movedCount > 0) "清单已删除，$movedCount 个任务已移入收集箱" else "清单已删除"
+                } else {
+                    "清单删除失败"
+                }
+            )
         }
     }
 
@@ -77,6 +98,7 @@ class TodoViewModel(
                 hasDueTime = hasDueTime,
                 estimatedPomodoros = estimatedPomodoros
             )
+            _messages.emit("任务已添加")
         }
     }
 
@@ -92,7 +114,9 @@ class TodoViewModel(
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            if (!taskRepository.updateTask(task.id, listId, title, note, priority, dueAt, hasDueTime, estimatedPomodoros)) {
+            if (taskRepository.updateTask(task.id, listId, title, note, priority, dueAt, hasDueTime, estimatedPomodoros)) {
+                _messages.emit("任务已更新")
+            } else {
                 _messages.emit("任务更新失败")
             }
         }
@@ -102,6 +126,46 @@ class TodoViewModel(
         viewModelScope.launch {
             if (!taskRepository.setDone(task.id, isDone)) {
                 _messages.emit("任务状态更新失败")
+            }
+        }
+    }
+
+    fun moveTask(task: TaskEntity, targetListId: String) {
+        viewModelScope.launch {
+            if (taskRepository.moveTask(task.id, targetListId)) {
+                _messages.emit("任务已移动")
+            } else {
+                _messages.emit("任务移动失败")
+            }
+        }
+    }
+
+    fun duplicateTask(task: TaskEntity) {
+        viewModelScope.launch {
+            if (taskRepository.duplicateTask(task.id)) {
+                _messages.emit("任务已复制")
+            } else {
+                _messages.emit("任务复制失败")
+            }
+        }
+    }
+
+    fun pinToday(task: TaskEntity) {
+        viewModelScope.launch {
+            if (taskRepository.pinToday(task.id)) {
+                _messages.emit("已设为今日重点")
+            } else {
+                _messages.emit("设置今日重点失败")
+            }
+        }
+    }
+
+    fun archiveTask(task: TaskEntity) {
+        viewModelScope.launch {
+            if (taskRepository.removeTask(task.id)) {
+                _messages.emit("任务已归档")
+            } else {
+                _messages.emit("任务归档失败")
             }
         }
     }

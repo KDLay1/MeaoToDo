@@ -5,6 +5,7 @@ import com.kdlay.meaotodo.data.local.dao.TaskDao
 import com.kdlay.meaotodo.data.local.entity.DEFAULT_TASK_LIST_ID
 import com.kdlay.meaotodo.data.local.entity.SyncOutboxEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
+import java.util.Calendar
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -78,11 +79,72 @@ class TaskRepository(
         return true
     }
 
+    suspend fun moveTask(id: String, targetListId: String): Boolean {
+        val cleanTarget = targetListId.ifBlank { DEFAULT_TASK_LIST_ID }
+        val now = System.currentTimeMillis()
+        if (taskDao.moveToList(id = id, targetListId = cleanTarget, updatedAt = now) <= 0) return false
+        val updated = taskDao.findById(id) ?: return false
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
+    }
+
+    suspend fun moveTasksFromList(sourceListId: String, targetListId: String = DEFAULT_TASK_LIST_ID): Int {
+        if (sourceListId == targetListId) return 0
+        val now = System.currentTimeMillis()
+        return taskDao.moveTasksFromList(
+            sourceListId = sourceListId,
+            targetListId = targetListId.ifBlank { DEFAULT_TASK_LIST_ID },
+            updatedAt = now
+        )
+    }
+
+    suspend fun duplicateTask(id: String, targetListId: String? = null): Boolean {
+        val existing = taskDao.findById(id)?.takeIf { it.deletedAt == null } ?: return false
+        val now = System.currentTimeMillis()
+        val duplicate = existing.copy(
+            id = UUID.randomUUID().toString(),
+            listId = targetListId?.ifBlank { DEFAULT_TASK_LIST_ID } ?: existing.listId,
+            title = "${existing.title} 副本",
+            isDone = false,
+            actualPomodoros = 0,
+            createdAt = now,
+            updatedAt = now,
+            deletedAt = null
+        )
+        taskDao.upsert(duplicate)
+        enqueueChange(task = duplicate, operation = "upsert", createdAt = now)
+        return true
+    }
+
+    suspend fun pinToday(id: String): Boolean {
+        val existing = taskDao.findById(id)?.takeIf { it.deletedAt == null } ?: return false
+        val now = System.currentTimeMillis()
+        val updated = existing.copy(
+            isDone = false,
+            dueAt = startOfDay(now),
+            hasDueTime = false,
+            priority = existing.priority.coerceAtLeast(2),
+            updatedAt = now
+        )
+        taskDao.upsert(updated)
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
+    }
+
     suspend fun removeTask(id: String): Boolean {
         val now = System.currentTimeMillis()
         taskDao.softDelete(id = id, deletedAt = now)
         val deleted = taskDao.findById(id) ?: return false
         enqueueChange(task = deleted, operation = "delete", createdAt = now)
+        return true
+    }
+
+    suspend fun incrementActualPomodoros(id: String, count: Int = 1): Boolean {
+        if (count <= 0) return false
+        val now = System.currentTimeMillis()
+        taskDao.incrementActualPomodoros(id = id, count = count, updatedAt = now)
+        val updated = taskDao.findById(id) ?: return false
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
         return true
     }
 
@@ -138,3 +200,11 @@ class TaskRepository(
         }
     }
 }
+
+private fun startOfDay(timestamp: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = timestamp
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+}.timeInMillis

@@ -20,6 +20,15 @@ interface TaskDao {
     @Query("UPDATE tasks SET isDone = :isDone, updatedAt = :updatedAt WHERE id = :id")
     suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long)
 
+    @Query("UPDATE tasks SET listId = :targetListId, updatedAt = :updatedAt WHERE id = :id AND deletedAt IS NULL")
+    suspend fun moveToList(id: String, targetListId: String, updatedAt: Long): Int
+
+    @Query("UPDATE tasks SET listId = :targetListId, updatedAt = :updatedAt WHERE listId = :sourceListId AND deletedAt IS NULL")
+    suspend fun moveTasksFromList(sourceListId: String, targetListId: String, updatedAt: Long): Int
+
     @Query("UPDATE tasks SET deletedAt = :deletedAt, updatedAt = :deletedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long)
+
+    @Query("UPDATE tasks SET actualPomodoros = actualPomodoros + :count, updatedAt = :updatedAt WHERE id = :id AND deletedAt IS NULL")
+    suspend fun incrementActualPomodoros(id: String, count: Int, updatedAt: Long)
 }
