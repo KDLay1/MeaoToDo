@@ -4,12 +4,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -29,7 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +63,8 @@ fun TodoScreen(
     var showListPickerDialog by remember { mutableStateOf(false) }
     var showFilterSortSheet by remember { mutableStateOf(false) }
     var quickAddTitle by rememberSaveable { mutableStateOf("") }
+    var searchActive by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
 
     val displayMode = remember(displayModeName) { TodoDisplayMode.valueOf(displayModeName) }
     val calendarMode = remember(calendarModeName) { TodoCalendarMode.valueOf(calendarModeName) }
@@ -69,19 +77,16 @@ fun TodoScreen(
     }
 
     LaunchedEffect(viewModel) {
-        viewModel.messages.collect { message ->
-            snackbarHostState.showSnackbar(message)
-        }
+        viewModel.messages.collect { message -> snackbarHostState.showSnackbar(message) }
     }
 
     val groups = remember(tasks) { buildTodoGroups(tasks) }
-    val visibleGroups = remember(groups, filterState) { applyTodoFilterAndSort(groups, filterState) }
+    val filteredGroups = remember(groups, filterState) { applyTodoFilterAndSort(groups, filterState) }
+    val visibleGroups = remember(filteredGroups, searchQuery) { applyTodoSearch(filteredGroups, searchQuery) }
     val listOptions = remember(groups, customLists) { buildListOptions(groups, customLists) }
 
     LaunchedEffect(listOptions, selectedListId) {
-        if (listOptions.none { it.id == selectedListId }) {
-            selectedListId = SMART_ALL
-        }
+        if (listOptions.none { it.id == selectedListId }) selectedListId = SMART_ALL
     }
 
     val selectedList = listOptions.firstOrNull { it.id == selectedListId } ?: listOptions.first()
@@ -106,9 +111,21 @@ fun TodoScreen(
                     groups = visibleGroups,
                     selectedList = selectedList,
                     selectedTasks = selectedTasks,
+                    listOptions = listOptions,
                     displayMode = displayMode,
                     calendarMode = calendarMode,
                     filterState = filterState,
+                    searchActive = searchActive,
+                    searchQuery = searchQuery,
+                    onSearchChange = { searchQuery = it },
+                    onToggleSearch = {
+                        searchActive = !searchActive
+                        if (!searchActive) searchQuery = ""
+                    },
+                    onClearSearch = {
+                        searchQuery = ""
+                        searchActive = false
+                    },
                     onPickList = { showListPickerDialog = true },
                     onOpenFilterSort = { showFilterSortSheet = true },
                     onDisplayModeChange = { displayModeName = it.name },
@@ -135,6 +152,10 @@ fun TodoScreen(
                     onEdit = { editingTask = it },
                     onRemove = viewModel::removeTask,
                     onStartFocus = onStartFocus,
+                    onDuplicate = viewModel::duplicateTask,
+                    onMove = viewModel::moveTask,
+                    onArchive = viewModel::archiveTask,
+                    onPinToday = viewModel::pinToday,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -165,6 +186,11 @@ fun TodoScreen(
             selectedListId = selectedList.id,
             onSelect = { selectedListId = it },
             onAddList = { showAddListDialog = true },
+            onRenameList = viewModel::renameTaskList,
+            onRemoveList = { listId ->
+                if (selectedListId == listId) selectedListId = SMART_ALL
+                viewModel.removeTaskList(listId)
+            },
             onDismiss = { showListPickerDialog = false }
         )
     }
@@ -232,9 +258,15 @@ private fun TodoListModeScreen(
     groups: TodoGroups,
     selectedList: TodoListOption,
     selectedTasks: List<TaskEntity>,
+    listOptions: List<TodoListOption>,
     displayMode: TodoDisplayMode,
     calendarMode: TodoCalendarMode,
     filterState: TodoFilterState,
+    searchActive: Boolean,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    onToggleSearch: () -> Unit,
+    onClearSearch: () -> Unit,
     onPickList: () -> Unit,
     onOpenFilterSort: () -> Unit,
     onDisplayModeChange: (TodoDisplayMode) -> Unit,
@@ -247,6 +279,10 @@ private fun TodoListModeScreen(
     onEdit: (TaskEntity) -> Unit,
     onRemove: (TaskEntity) -> Unit,
     onStartFocus: (TaskEntity) -> Unit,
+    onDuplicate: (TaskEntity) -> Unit,
+    onMove: (TaskEntity, String) -> Unit,
+    onArchive: (TaskEntity) -> Unit,
+    onPinToday: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -255,6 +291,11 @@ private fun TodoListModeScreen(
             selectedList = selectedList,
             selectedTasks = selectedTasks,
             filterState = filterState,
+            searchActive = searchActive,
+            searchQuery = searchQuery,
+            onSearchChange = onSearchChange,
+            onToggleSearch = onToggleSearch,
+            onClearSearch = onClearSearch,
             onPickList = onPickList,
             onOpenFilterSort = onOpenFilterSort
         )
@@ -274,10 +315,15 @@ private fun TodoListModeScreen(
             modifier = Modifier.weight(1f),
             groups = groups,
             selectedList = selectedList,
+            listOptions = listOptions,
             onCheckedChange = onCheckedChange,
             onEdit = onEdit,
             onRemove = onRemove,
-            onStartFocus = onStartFocus
+            onStartFocus = onStartFocus,
+            onDuplicate = onDuplicate,
+            onMove = onMove,
+            onArchive = onArchive,
+            onPinToday = onPinToday
         )
     }
 }
@@ -288,6 +334,11 @@ private fun CompactTodoHeader(
     selectedList: TodoListOption,
     selectedTasks: List<TaskEntity>,
     filterState: TodoFilterState,
+    searchActive: Boolean,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    onToggleSearch: () -> Unit,
+    onClearSearch: () -> Unit,
     onPickList: () -> Unit,
     onOpenFilterSort: () -> Unit
 ) {
@@ -304,7 +355,7 @@ private fun CompactTodoHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
                 Text(
                     text = "MeaoToDo",
                     style = MaterialTheme.typography.titleLarge,
@@ -324,18 +375,15 @@ private fun CompactTodoHeader(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = "⌄",
-                        fontSize = 30.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(text = "⌄", fontSize = 30.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "⌕",
+                    modifier = Modifier.clickable(onClick = onToggleSearch),
+                    text = if (searchActive) "×" else "⌕",
                     fontSize = 34.sp,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = if (searchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
                 )
                 Surface(
                     modifier = Modifier.clickable(onClick = onOpenFilterSort),
@@ -351,15 +399,66 @@ private fun CompactTodoHeader(
                 }
             }
         }
+        if (searchActive) {
+            TodoSearchBar(
+                query = searchQuery,
+                onQueryChange = onSearchChange,
+                onClear = onClearSearch
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             SummaryCount(label = "待办", count = pendingCount, color = MaterialTheme.colorScheme.primary)
             Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
             SummaryCount(label = "今天", count = todayCount, color = MaterialTheme.colorScheme.primary)
             Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
             SummaryCount(label = "完成", count = completedCount, color = MaterialTheme.colorScheme.tertiary)
-            if (!filterState.isDefault) {
+            if (!filterState.isDefault || searchQuery.isNotBlank()) {
                 Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                SummaryCount(label = "筛选后", count = selectedTasks.size, color = MaterialTheme.colorScheme.secondary)
+                SummaryCount(label = "当前", count = selectedTasks.size, color = MaterialTheme.colorScheme.secondary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodoSearchBar(query: String, onQueryChange: (String) -> Unit, onClear: () -> Unit) {
+    val focusManager = LocalFocusManager.current
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("⌕", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            BasicTextField(
+                modifier = Modifier.weight(1f),
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                decorationBox = { innerTextField ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                        if (query.isBlank()) Text("搜索标题或备注", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        innerTextField()
+                    }
+                }
+            )
+            if (query.isNotBlank()) {
+                Text(
+                    modifier = Modifier.clickable(onClick = onClear),
+                    text = "清除",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -402,11 +501,7 @@ private fun TodoCalendarModeScreen(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        CalendarTopBar(
-            selectedList = selectedList,
-            onPickList = onPickList,
-            onAddTask = onAddTask
-        )
+        CalendarTopBar(selectedList = selectedList, onPickList = onPickList, onAddTask = onAddTask)
         DisplayModeSwitcher(
             displayMode = displayMode,
             calendarMode = calendarMode,
@@ -430,11 +525,7 @@ private fun TodoCalendarModeScreen(
 }
 
 @Composable
-private fun CalendarTopBar(
-    selectedList: TodoListOption,
-    onPickList: () -> Unit,
-    onAddTask: () -> Unit
-) {
+private fun CalendarTopBar(selectedList: TodoListOption, onPickList: () -> Unit, onAddTask: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -446,10 +537,7 @@ private fun CalendarTopBar(
 }
 
 @Composable
-private fun CompactCalendarListButton(
-    selectedList: TodoListOption,
-    onClick: () -> Unit
-) {
+private fun CompactCalendarListButton(selectedList: TodoListOption, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
@@ -468,4 +556,15 @@ private fun CompactCalendarListButton(
             Text("▼", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+private fun applyTodoSearch(groups: TodoGroups, query: String): TodoGroups {
+    val cleanQuery = query.trim()
+    if (cleanQuery.isBlank()) return groups
+    return buildTodoGroups(
+        groups.all.filter { task ->
+            task.title.contains(cleanQuery, ignoreCase = true) ||
+                task.note.contains(cleanQuery, ignoreCase = true)
+        }
+    )
 }
