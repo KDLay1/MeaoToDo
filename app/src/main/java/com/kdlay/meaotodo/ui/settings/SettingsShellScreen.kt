@@ -31,6 +31,8 @@ internal fun SettingsShellScreen(
     onBack: () -> Unit = {}
 ) {
     val preferences by viewModel.preferences.collectAsState()
+    val aiSettings by viewModel.aiSettings.collectAsState()
+    val aiStatus by viewModel.aiStatus.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -42,11 +44,16 @@ internal fun SettingsShellScreen(
         item { SettingsHeader(onBack = onBack) }
         item {
             SettingsSection(title = "助手与洞察", icon = "✦") {
-                Text(
-                    "洞察模块可在看板页的“管理模块”中调整，并会自动保存。后续 AI 设置也将集中在这里。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                AiSettingsCard(
+                    settings = aiSettings,
+                    status = aiStatus,
+                    onSave = viewModel::saveAiConfiguration,
+                    onTest = viewModel::testAiConnection,
+                    onClearKey = viewModel::clearAiApiKey,
+                    onAutoDailyBriefChange = viewModel::setAutoDailyBrief,
+                    onAutoEveningReviewChange = viewModel::setAutoEveningReview
                 )
+                Text("洞察模块可在记录页的“洞察”中调整，并会自动保存。")
             }
         }
         item {

@@ -11,14 +11,15 @@ MeaoToDo is a single-device, local-first Android personal assistant. It connects
 - Multi-round Pomodoro focus/break runs, task binding, history, and persisted preferences.
 - Precise local expense entry, real daily/monthly summaries, categories, and budget pace.
 - Focus recommendations, productivity pulse, streaks, and a seven-day trend.
+- Assistant context, deterministic command parsing, pending actions, a daily timeline, and a global focus bar.
+- BYOK AI with encrypted key storage, compatible APIs, task drafts, daily briefs, reviews, and plan adjustment.
+- Opt-in daily brief and evening review automation, limited to one run per day.
 
 ## In Development
 
-- A `DailyContext` combining tasks, focus, ledger, budget, and time.
-- Unified assistant input and confirmation-first pending actions.
-- Bring-your-own-key AI connectivity.
-- Natural-language task drafting, daily brief, smart prompts, evening review, and plan adjustment.
-- A workflow-driven primary UI organized around Assistant, Plan, and Record.
+- A prompt regression corpus and broader provider compatibility tests.
+- More complete Compose UI and Room migration instrumentation tests.
+- Data export, backup, and additional privacy controls.
 
 ## AI Safety Boundary
 

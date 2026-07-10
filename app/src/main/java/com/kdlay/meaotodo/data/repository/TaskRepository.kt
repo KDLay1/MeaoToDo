@@ -132,6 +132,19 @@ class TaskRepository(
         return true
     }
 
+    suspend fun rescheduleTask(id: String, dueAt: Long?, hasDueTime: Boolean = false): Boolean {
+        val existing = taskDao.findById(id)?.takeIf { it.deletedAt == null } ?: return false
+        val now = System.currentTimeMillis()
+        val updated = existing.copy(
+            dueAt = dueAt,
+            hasDueTime = dueAt != null && hasDueTime,
+            updatedAt = now
+        )
+        taskDao.upsert(updated)
+        enqueueChange(task = updated, operation = "upsert", createdAt = now)
+        return true
+    }
+
     suspend fun removeTask(id: String): Boolean {
         val now = System.currentTimeMillis()
         taskDao.softDelete(id = id, deletedAt = now)

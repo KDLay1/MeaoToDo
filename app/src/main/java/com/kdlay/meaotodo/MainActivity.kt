@@ -13,6 +13,7 @@ import com.kdlay.meaotodo.ui.settings.SettingsViewModel
 import com.kdlay.meaotodo.ui.theme.MeaoTodoTheme
 import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
+import com.kdlay.meaotodo.ui.assistant.AssistantViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,8 +37,21 @@ class MainActivity : ComponentActivity() {
         )[BoardViewModel::class.java]
         val settingsViewModel = ViewModelProvider(
             this,
-            SettingsViewModel.factory(appContainer.settingsStore)
+            SettingsViewModel.factory(
+                appContainer.settingsStore,
+                appContainer.aiSettingsStore,
+                appContainer.assistantAiService
+            )
         )[SettingsViewModel::class.java]
+        val assistantViewModel = ViewModelProvider(
+            this,
+            AssistantViewModel.factory(
+                appContainer.dailyContextRepository,
+                appContainer.aiSettingsStore,
+                appContainer.assistantAiService,
+                appContainer.assistantActionExecutor
+            )
+        )[AssistantViewModel::class.java]
 
         setContent {
             MeaoTodoTheme {
@@ -47,6 +61,7 @@ class MainActivity : ComponentActivity() {
                     ledgerViewModel = ledgerViewModel,
                     boardViewModel = boardViewModel,
                     settingsViewModel = settingsViewModel,
+                    assistantViewModel = assistantViewModel,
                     onTimerImmersiveModeChange = { isImmersive ->
                         requestedOrientation = if (isImmersive) {
                             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE

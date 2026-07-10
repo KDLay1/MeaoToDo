@@ -8,11 +8,20 @@ import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.data.repository.TaskListRepository
 import com.kdlay.meaotodo.data.repository.TaskRepository
 import com.kdlay.meaotodo.core.settings.AppSettingsStore
+import com.kdlay.meaotodo.ai.config.AiSettingsStore
+import com.kdlay.meaotodo.ai.config.StoredAiProviderConfigSource
+import com.kdlay.meaotodo.ai.network.OpenAiCompatibleClient
+import com.kdlay.meaotodo.ai.AssistantAiService
+import com.kdlay.meaotodo.domain.assistant.DailyContextRepository
+import com.kdlay.meaotodo.domain.assistant.AssistantActionExecutor
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
     val settingsStore = AppSettingsStore(appContext)
+    val aiSettingsStore = AiSettingsStore(appContext)
+    val aiProviderConfigSource = StoredAiProviderConfigSource(aiSettingsStore)
+    val aiClient = OpenAiCompatibleClient()
 
     val database: MeaoDatabase = Room.databaseBuilder(
         appContext,
@@ -29,4 +38,20 @@ class AppContainer(context: Context) {
         taskRepository
     )
     val ledgerRepository = LedgerRepository(database.ledgerDao(), database.syncOutboxDao())
+    val dailyContextRepository = DailyContextRepository(
+        taskRepository = taskRepository,
+        pomodoroRepository = pomodoroRepository,
+        ledgerRepository = ledgerRepository,
+        settingsStore = settingsStore
+    )
+    val assistantAiService = AssistantAiService(
+        providerConfigSource = aiProviderConfigSource,
+        client = aiClient,
+        dailyContextSource = dailyContextRepository
+    )
+    val assistantActionExecutor = AssistantActionExecutor(
+        taskRepository = taskRepository,
+        pomodoroRepository = pomodoroRepository,
+        ledgerRepository = ledgerRepository
+    )
 }
