@@ -25,13 +25,15 @@ class TaskRepository(
         dueAt: Long? = null,
         hasDueTime: Boolean = false,
         estimatedPomodoros: Int = 0
-    ) {
+    ): Boolean {
+        val cleanTitle = title.trim()
+        if (cleanTitle.isBlank()) return false
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         val task = TaskEntity(
             id = id,
             listId = listId.ifBlank { DEFAULT_TASK_LIST_ID },
-            title = title.trim(),
+            title = cleanTitle,
             note = note.trim(),
             priority = priority.coerceIn(0, 3),
             dueAt = dueAt,
@@ -42,6 +44,7 @@ class TaskRepository(
         )
         taskDao.upsert(task)
         enqueueChange(task = task, operation = "upsert", createdAt = now)
+        return true
     }
 
     suspend fun updateTask(
@@ -55,10 +58,12 @@ class TaskRepository(
         estimatedPomodoros: Int
     ): Boolean {
         val existing = taskDao.findById(id) ?: return false
+        val cleanTitle = title.trim()
+        if (cleanTitle.isBlank()) return false
         val now = System.currentTimeMillis()
         val updated = existing.copy(
             listId = listId.ifBlank { DEFAULT_TASK_LIST_ID },
-            title = title.trim(),
+            title = cleanTitle,
             note = note.trim(),
             priority = priority.coerceIn(0, 3),
             dueAt = dueAt,
@@ -90,12 +95,8 @@ class TaskRepository(
 
     suspend fun moveTasksFromList(sourceListId: String, targetListId: String = DEFAULT_TASK_LIST_ID): Int {
         if (sourceListId == targetListId) return 0
-        val now = System.currentTimeMillis()
-        return taskDao.moveTasksFromList(
-            sourceListId = sourceListId,
-            targetListId = targetListId.ifBlank { DEFAULT_TASK_LIST_ID },
-            updatedAt = now
-        )
+        val tasks = taskDao.findActiveByListId(sourceListId)
+        return tasks.count { task -> moveTask(task.id, targetListId) }
     }
 
     suspend fun duplicateTask(id: String, targetListId: String? = null): Boolean {

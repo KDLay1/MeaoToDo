@@ -14,6 +14,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): TaskEntity?
 
+    @Query("SELECT * FROM tasks WHERE listId = :listId AND deletedAt IS NULL ORDER BY createdAt ASC")
+    suspend fun findActiveByListId(listId: String): List<TaskEntity>
+
     @Upsert
     suspend fun upsert(task: TaskEntity)
 

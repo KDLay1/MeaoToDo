@@ -228,10 +228,7 @@ internal fun TodoListPickerDialog(
                 }
                 Button(
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    onClick = {
-                        onDismiss()
-                        onAddList()
-                    }
+                    onClick = onAddList
                 ) {
                     Text("＋ 新建列表", fontWeight = FontWeight.Bold)
                 }

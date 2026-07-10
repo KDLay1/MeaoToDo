@@ -35,6 +35,7 @@ class TaskListRepository(
     suspend fun createList(name: String): Boolean {
         val cleanName = name.trim()
         if (cleanName.isBlank()) return false
+        if (taskListDao.findActiveByName(cleanName) != null) return false
         val now = System.currentTimeMillis()
         val taskList = TaskListEntity(
             id = UUID.randomUUID().toString(),
@@ -52,6 +53,7 @@ class TaskListRepository(
         val cleanName = name.trim()
         if (id == DEFAULT_TASK_LIST_ID || cleanName.isBlank()) return false
         val existing = taskListDao.findById(id) ?: return false
+        if (taskListDao.findActiveByName(cleanName)?.id?.let { it != id } == true) return false
         val now = System.currentTimeMillis()
         val updated = existing.copy(name = cleanName, updatedAt = now)
         taskListDao.rename(id = id, name = cleanName, updatedAt = now)

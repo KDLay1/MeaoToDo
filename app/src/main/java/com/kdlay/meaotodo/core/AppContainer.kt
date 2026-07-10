@@ -8,8 +8,6 @@ import com.kdlay.meaotodo.data.repository.PomodoroRepository
 import com.kdlay.meaotodo.data.repository.TaskListRepository
 import com.kdlay.meaotodo.data.repository.TaskRepository
 import com.kdlay.meaotodo.core.settings.AppSettingsStore
-import com.kdlay.meaotodo.sync.AndroidNsdWifiDiscoveryService
-import com.kdlay.meaotodo.sync.WifiSyncGateway
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -31,7 +29,4 @@ class AppContainer(context: Context) {
         taskRepository
     )
     val ledgerRepository = LedgerRepository(database.ledgerDao(), database.syncOutboxDao())
-
-    val wifiDiscoveryService = AndroidNsdWifiDiscoveryService(appContext)
-    val wifiSyncGateway = WifiSyncGateway(database.syncOutboxDao())
 }

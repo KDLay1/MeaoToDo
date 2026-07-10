@@ -16,27 +16,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kdlay.meaotodo.ui.components.MeaoSettingsSwitchRow
-import com.kdlay.meaotodo.ui.components.MeaoSettingsValueRow
 
 @Composable
 internal fun SettingsShellScreen(
+    viewModel: SettingsViewModel,
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {}
 ) {
-    var keepScreenOn by rememberSaveable { mutableStateOf(true) }
-    var autoSync by rememberSaveable { mutableStateOf(false) }
-    var darkBoardMode by rememberSaveable { mutableStateOf(true) }
-    var focusReminder by rememberSaveable { mutableStateOf(true) }
+    val preferences by viewModel.preferences.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -47,102 +41,52 @@ internal fun SettingsShellScreen(
     ) {
         item { SettingsHeader(onBack = onBack) }
         item {
-            SettingsSection(title = "设备与同步", icon = "⇄") {
-                MeaoSettingsValueRow(
-                    icon = "⌂",
-                    title = "设备角色",
-                    value = "主力机",
-                    subtitle = "后续支持主力机 / 备用机看板切换",
-                    onClick = {}
-                )
-                MeaoSettingsSwitchRow(
-                    icon = "⟲",
-                    title = "Wi‑Fi 自动同步",
-                    subtitle = "同一局域网内自动同步任务、番茄和账本",
-                    checked = autoSync,
-                    onCheckedChange = { autoSync = it }
-                )
-                MeaoSettingsValueRow(
-                    icon = "●",
-                    title = "同步状态",
-                    value = "未配对",
-                    subtitle = "后续接入设备搜索、配对码和最近同步时间",
-                    onClick = {}
-                )
-            }
-        }
-        item {
-            SettingsSection(title = "看板与显示", icon = "▤") {
-                MeaoSettingsSwitchRow(
-                    icon = "☀",
-                    title = "备用机常亮",
-                    subtitle = "看板页保持屏幕常亮，适合作为桌面信息面板",
-                    checked = keepScreenOn,
-                    onCheckedChange = { keepScreenOn = it }
-                )
-                MeaoSettingsSwitchRow(
-                    icon = "◐",
-                    title = "看板深色模式",
-                    subtitle = "备用机夜间低亮度展示，后续接入全局主题",
-                    checked = darkBoardMode,
-                    onCheckedChange = { darkBoardMode = it }
-                )
-                MeaoSettingsValueRow(
-                    icon = "▦",
-                    title = "看板模块",
-                    value = "5 个模块",
-                    subtitle = "管理今日重点、番茄、支出、日程、习惯状态",
-                    onClick = {}
+            SettingsSection(title = "助手与洞察", icon = "✦") {
+                Text(
+                    "洞察模块可在看板页的“管理模块”中调整，并会自动保存。后续 AI 设置也将集中在这里。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         item {
             SettingsSection(title = "番茄与任务", icon = "⏱") {
-                MeaoSettingsValueRow(
-                    icon = "◷",
-                    title = "默认番茄",
-                    value = "25/5",
-                    subtitle = "默认专注 25 分钟，短休息 5 分钟",
-                    onClick = {}
-                )
-                MeaoSettingsSwitchRow(
-                    icon = "🔔",
-                    title = "结束提醒",
-                    subtitle = "专注结束和休息结束时提醒",
-                    checked = focusReminder,
-                    onCheckedChange = { focusReminder = it }
-                )
-                MeaoSettingsValueRow(
-                    icon = "★",
-                    title = "今日重点规则",
-                    value = "手动",
-                    subtitle = "后续支持按优先级或截止时间自动推荐",
-                    onClick = {}
+                Text("默认时长与轮次请在番茄页直接调整，修改后会自动保存。")
+                Text(
+                    "结束通知尚未接入 Android 通知渠道；计时状态仍会在番茄页与看板实时显示。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         item {
             SettingsSection(title = "账本与数据", icon = "▣") {
-                MeaoSettingsValueRow(
-                    icon = "¥",
-                    title = "账本分类",
-                    value = "6 类",
-                    subtitle = "餐饮、学习、交通、咖啡、生活、其他",
-                    onClick = {}
+                Text("账本分类：餐饮、学习、交通、咖啡、生活、其他。")
+                Text(
+                    if (preferences.monthlyBudgetCents > 0) {
+                        "当前月预算：¥${preferences.monthlyBudgetCents / 100}"
+                    } else {
+                        "当前未设置月预算"
+                    },
+                    fontWeight = FontWeight.SemiBold
                 )
-                MeaoSettingsValueRow(
-                    icon = "⇩",
-                    title = "数据导出",
-                    value = "CSV",
-                    subtitle = "后续支持导出任务、番茄记录和账本流水",
-                    onClick = {}
-                )
-                MeaoSettingsValueRow(
-                    icon = "i",
-                    title = "关于 MeaoToDo",
-                    value = "MVP",
-                    subtitle = "单机可用优先，双机同步逐步接入",
-                    onClick = {}
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0L to "关闭", 200_000L to "¥2000", 300_000L to "¥3000", 500_000L to "¥5000").forEach { (cents, label) ->
+                        val selected = preferences.monthlyBudgetCents == cents
+                        Surface(
+                            modifier = Modifier.clickable { viewModel.setMonthlyBudgetCents(cents) },
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Text(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), text = label, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+                Text(
+                    "数据导出尚未实现；当前数据保存在本机 Room 数据库中。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -174,7 +118,7 @@ private fun SettingsHeader(onBack: () -> Unit) {
         }
         Text("设置", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Text(
-            text = "设备、同步、看板、番茄和账本的统一配置入口。",
+            text = "本地助手、专注、洞察和账本的统一配置入口。",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

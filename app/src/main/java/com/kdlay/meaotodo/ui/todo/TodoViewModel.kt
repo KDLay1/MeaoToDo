@@ -89,7 +89,7 @@ class TodoViewModel(
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            taskRepository.addTask(
+            val added = taskRepository.addTask(
                 listId = listId,
                 title = title,
                 note = note,
@@ -98,7 +98,7 @@ class TodoViewModel(
                 hasDueTime = hasDueTime,
                 estimatedPomodoros = estimatedPomodoros
             )
-            _messages.emit("任务已添加")
+            _messages.emit(if (added) "任务已添加" else "任务标题不能为空")
         }
     }
 

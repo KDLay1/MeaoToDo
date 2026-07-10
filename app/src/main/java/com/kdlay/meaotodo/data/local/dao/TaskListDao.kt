@@ -14,6 +14,9 @@ interface TaskListDao {
     @Query("SELECT * FROM task_lists WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): TaskListEntity?
 
+    @Query("SELECT * FROM task_lists WHERE name = :name COLLATE NOCASE AND deletedAt IS NULL LIMIT 1")
+    suspend fun findActiveByName(name: String): TaskListEntity?
+
     @Upsert
     suspend fun upsert(taskList: TaskListEntity)
 

@@ -234,7 +234,7 @@ internal fun QuickAddBar(
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                         if (!canSubmit) {
                             Text(
-                                text = "添加一件今天要做的小事",
+                                text = "添加任务 · 可用 #今天 !高 🍅3 @清单",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                 maxLines = 1,

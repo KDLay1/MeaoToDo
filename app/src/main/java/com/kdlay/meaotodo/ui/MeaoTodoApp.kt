@@ -29,6 +29,7 @@ import com.kdlay.meaotodo.ui.board.BoardViewModel
 import com.kdlay.meaotodo.ui.ledger.LedgerScreen
 import com.kdlay.meaotodo.ui.ledger.LedgerViewModel
 import com.kdlay.meaotodo.ui.settings.SettingsShellScreen
+import com.kdlay.meaotodo.ui.settings.SettingsViewModel
 import com.kdlay.meaotodo.ui.timer.PomodoroTemplateScreen
 import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoScreen
@@ -50,6 +51,7 @@ fun MeaoTodoApp(
     pomodoroViewModel: PomodoroViewModel,
     ledgerViewModel: LedgerViewModel,
     boardViewModel: BoardViewModel,
+    settingsViewModel: SettingsViewModel,
     onTimerImmersiveModeChange: (Boolean) -> Unit = {}
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
@@ -117,8 +119,8 @@ fun MeaoTodoApp(
                     }
                 )
                 MainTab.Ledger -> LedgerScreen(viewModel = ledgerViewModel)
-                MainTab.Board -> BoardScreen(viewModel = boardViewModel)
-                MainTab.Settings -> SettingsShellScreen(onBack = { selectedTab = previousContentTab })
+                MainTab.Board -> BoardScreen(viewModel = boardViewModel, settingsViewModel = settingsViewModel)
+                MainTab.Settings -> SettingsShellScreen(viewModel = settingsViewModel, onBack = { selectedTab = previousContentTab })
             }
         }
     }

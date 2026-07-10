@@ -126,9 +126,12 @@ fun LedgerScreen(
                     onCategoryChange = { selectedCategory = it },
                     onNoteChange = { note = it },
                     onSave = {
+                        val validAmount = parseAmountCents(amountText) != null
                         viewModel.addExpense(amountText, selectedCategory, note)
-                        amountText = ""
-                        note = ""
+                        if (validAmount) {
+                            amountText = ""
+                            note = ""
+                        }
                     }
                 )
             }
@@ -165,7 +168,7 @@ private fun CategorySummaryRow(uiState: LedgerUiState) {
     val monthTotal = uiState.monthExpenseCents.coerceAtLeast(1)
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         ledgerCategories.take(4).forEach { category ->
-            val total = uiState.entries.filter { it.category == category }.sumOf { it.amountCents }
+            val total = uiState.monthEntries.filter { it.category == category }.sumOf { it.amountCents }
             val percent = ((total * 100f) / monthTotal).roundToInt().coerceAtLeast(0)
             CategorySummaryCard(
                 modifier = Modifier.weight(1f),
@@ -199,7 +202,7 @@ private fun CategorySummaryCard(modifier: Modifier, category: String, amount: Lo
 
 @Composable
 private fun MonthOverviewCard(uiState: LedgerUiState) {
-    val totals = ledgerCategories.map { category -> uiState.entries.filter { it.category == category }.sumOf { it.amountCents } }
+    val totals = ledgerCategories.map { category -> uiState.monthEntries.filter { it.category == category }.sumOf { it.amountCents } }
     val total = totals.sum().takeIf { it > 0 } ?: uiState.monthExpenseCents
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -210,9 +213,9 @@ private fun MonthOverviewCard(uiState: LedgerUiState) {
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("六月概览", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("${formatLedgerMonth(uiState.nowMillis)}概览", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Surface(shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.24f))) {
-                    Text(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), text = "2025年6月⌄", style = MaterialTheme.typography.labelLarge)
+                    Text(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), text = formatLedgerYearMonth(uiState.nowMillis), style = MaterialTheme.typography.labelLarge)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -391,3 +394,5 @@ private fun LedgerEntryRow(entry: LedgerEntryEntity, onRemove: () -> Unit) {
 }
 
 private fun formatLedgerDate(timestamp: Long): String = SimpleDateFormat("M月d日 HH:mm", Locale.getDefault()).format(Date(timestamp))
+private fun formatLedgerMonth(timestamp: Long): String = SimpleDateFormat("M月", Locale.getDefault()).format(Date(timestamp))
+private fun formatLedgerYearMonth(timestamp: Long): String = SimpleDateFormat("yyyy年M月", Locale.getDefault()).format(Date(timestamp))

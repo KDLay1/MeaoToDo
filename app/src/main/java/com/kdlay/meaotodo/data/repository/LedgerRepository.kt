@@ -18,7 +18,7 @@ class LedgerRepository(
     fun observeExpenseSum(startAt: Long, endAt: Long) = ledgerDao.observeExpenseSum(startAt, endAt)
 
     suspend fun addExpense(amountCents: Long, category: String, note: String = ""): Boolean {
-        val cleanCategory = category.trim().ifBlank { "??" }
+        val cleanCategory = category.trim().ifBlank { "其他" }
         val safeAmount = amountCents.coerceAtLeast(0)
         if (safeAmount <= 0) return false
 

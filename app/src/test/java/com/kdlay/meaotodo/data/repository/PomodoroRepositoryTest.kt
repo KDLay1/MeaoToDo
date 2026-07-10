@@ -369,12 +369,27 @@ class PomodoroRepositoryTest {
 
         override suspend fun findById(id: String): TaskEntity? = tasks[id]
 
+        override suspend fun findActiveByListId(listId: String): List<TaskEntity> =
+            tasks.values.filter { it.listId == listId && it.deletedAt == null }
+
         override suspend fun upsert(task: TaskEntity) {
             tasks[task.id] = task
         }
 
         override suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long) {
             tasks[id]?.let { tasks[id] = it.copy(isDone = isDone, updatedAt = updatedAt) }
+        }
+
+        override suspend fun moveToList(id: String, targetListId: String, updatedAt: Long): Int {
+            val task = tasks[id]?.takeIf { it.deletedAt == null } ?: return 0
+            tasks[id] = task.copy(listId = targetListId, updatedAt = updatedAt)
+            return 1
+        }
+
+        override suspend fun moveTasksFromList(sourceListId: String, targetListId: String, updatedAt: Long): Int {
+            val matches = tasks.values.filter { it.listId == sourceListId && it.deletedAt == null }
+            matches.forEach { tasks[it.id] = it.copy(listId = targetListId, updatedAt = updatedAt) }
+            return matches.size
         }
 
         override suspend fun softDelete(id: String, deletedAt: Long) {

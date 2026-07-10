@@ -1,7 +1,5 @@
 package com.kdlay.meaotodo.ui.board
 
-import android.app.Activity
-import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -23,7 +21,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import com.kdlay.meaotodo.ui.ledger.formatMoney
+import com.kdlay.meaotodo.ui.settings.SettingsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,10 +46,11 @@ import java.util.Locale
 @Composable
 fun BoardScreen(
     viewModel: BoardViewModel,
+    settingsViewModel: SettingsViewModel,
     modifier: Modifier = Modifier
 ) {
-    KeepScreenOn()
     val uiState by viewModel.uiState.collectAsState()
+    val preferences by settingsViewModel.preferences.collectAsState()
     var showModuleManager by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
@@ -63,42 +61,48 @@ fun BoardScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item { BoardTopHeader(onManageModules = { showModuleManager = !showModuleManager }) }
+        item { ProductivityPulseCard(uiState) }
         if (showModuleManager) {
-            item { BoardModuleManagerCard(onDone = { showModuleManager = false }) }
+            item {
+                BoardModuleManagerCard(
+                    todayVisible = preferences.boardShowToday,
+                    pomodoroVisible = preferences.boardShowPomodoro,
+                    ledgerVisible = preferences.boardShowLedger,
+                    scheduleVisible = preferences.boardShowSchedule,
+                    statusVisible = preferences.boardShowStatus,
+                    onTodayVisibleChange = settingsViewModel::setBoardShowToday,
+                    onPomodoroVisibleChange = settingsViewModel::setBoardShowPomodoro,
+                    onLedgerVisibleChange = settingsViewModel::setBoardShowLedger,
+                    onScheduleVisibleChange = settingsViewModel::setBoardShowSchedule,
+                    onStatusVisibleChange = settingsViewModel::setBoardShowStatus,
+                    onDone = { showModuleManager = false }
+                )
+            }
         }
         item {
             BoxWithConstraints {
                 if (maxWidth > 620.dp) {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            TodayFocusCard(uiState = uiState)
-                            SpendingPreviewCard(uiState = uiState)
+                            if (preferences.boardShowToday) TodayFocusCard(uiState = uiState)
+                            if (preferences.boardShowLedger) SpendingPreviewCard(uiState = uiState, monthlyBudgetCents = preferences.monthlyBudgetCents)
                         }
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            PomodoroProgressCard(uiState = uiState)
-                            ScheduleCard()
+                            if (preferences.boardShowPomodoro) PomodoroProgressCard(uiState = uiState)
+                            if (preferences.boardShowSchedule) ScheduleCard(uiState)
                         }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        TodayFocusCard(uiState = uiState)
-                        PomodoroProgressCard(uiState = uiState)
-                        SpendingPreviewCard(uiState = uiState)
-                        ScheduleCard()
+                        if (preferences.boardShowToday) TodayFocusCard(uiState = uiState)
+                        if (preferences.boardShowPomodoro) PomodoroProgressCard(uiState = uiState)
+                        if (preferences.boardShowLedger) SpendingPreviewCard(uiState = uiState, monthlyBudgetCents = preferences.monthlyBudgetCents)
+                        if (preferences.boardShowSchedule) ScheduleCard(uiState)
                     }
                 }
             }
         }
-        item { HabitStatusCard() }
-    }
-}
-
-@Composable
-private fun KeepScreenOn() {
-    val activity = LocalContext.current as? Activity
-    DisposableEffect(activity) {
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        if (preferences.boardShowStatus) item { HabitStatusCard(uiState) }
     }
 }
 
@@ -185,10 +189,15 @@ private fun BoardTaskItem(task: TaskEntity) {
 
 @Composable
 private fun PomodoroProgressCard(uiState: BoardUiState) {
-    val target = 6
-    val done = (uiState.todayTasks.count { it.actualPomodoros > 0 } + if (uiState.activeSession != null) 1 else 0).coerceIn(0, target)
+    val target = uiState.focusTarget.coerceAtLeast(1)
+    val done = uiState.todayFocusCount.coerceAtMost(target)
     val progress = done.toFloat() / target.toFloat()
     DashboardCard(title = "番茄进度", icon = "⏱", action = "查看专注记录  ›") {
+        Text(
+            "连续专注 ${uiState.focusStreakDays} 天 · 下方为本周真实完成记录",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("今日专注", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -200,8 +209,12 @@ private fun PomodoroProgressCard(uiState: BoardUiState) {
             ProgressRing(progress = progress)
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            listOf(4, 5, 6, 2, 4, 2).forEachIndexed { index, value ->
-                WeekBar(value = value, label = listOf("一", "二", "三", "四", "五", "六")[index], selected = index == 2)
+            uiState.weeklyFocusCounts.forEachIndexed { index, value ->
+                WeekBar(
+                    value = value,
+                    label = listOf("一", "二", "三", "四", "五", "六", "日")[index],
+                    selected = index == currentWeekdayIndex(uiState.nowMillis)
+                )
             }
         }
     }
@@ -238,31 +251,98 @@ private fun WeekBar(value: Int, label: String, selected: Boolean) {
 }
 
 @Composable
-private fun SpendingPreviewCard(uiState: BoardUiState) {
+private fun SpendingPreviewCard(uiState: BoardUiState, monthlyBudgetCents: Long) {
+    val pace = buildBudgetPace(uiState.monthExpenseCents, monthlyBudgetCents, uiState.nowMillis)
     DashboardCard(title = "支出速览", icon = "▣", action = "查看账本  ›") {
         Text("今日支出", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(formatMoney(uiState.todayExpenseCents), fontSize = 34.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold)
         Text("本周支出", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(formatMoney(uiState.todayExpenseCents * 3), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(formatMoney(uiState.weekExpenseCents), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            if (pace.budgetCents > 0) {
+                "本月 ${formatMoney(pace.spentCents)} / ${formatMoney(pace.budgetCents)} · ${pace.status}"
+            } else {
+                "本月 ${formatMoney(pace.spentCents)} · 可在设置中开启月预算"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (pace.status.contains("超")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (pace.spentCents > 0) {
+            Text(
+                "按当前节奏预计月末 ${formatMoney(pace.projectedMonthCents)}",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
 @Composable
-private fun ScheduleCard() {
-    DashboardCard(title = "日程", icon = "▦", action = "查看全部日程  ›") {
-        ScheduleLine(start = "14:00", end = "15:30", title = "生物实验课", note = "实验楼 2F · 201 室", color = MaterialTheme.colorScheme.primary)
-        ScheduleLine(start = "19:00", end = "20:00", title = "英语听力练习", note = "专注学习", color = MaterialTheme.colorScheme.tertiary)
+private fun ScheduleCard(uiState: BoardUiState) {
+    val scheduledTasks = uiState.todayTasks.filter { it.hasDueTime }.sortedBy { it.dueAt }.take(4)
+    DashboardCard(title = "今日日程", icon = "▦", action = "来自任务截止时间") {
+        if (scheduledTasks.isEmpty()) {
+            Text("今天没有设置具体时间的任务。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            scheduledTasks.forEach { task ->
+                ScheduleLine(
+                    time = formatTaskTime(task.dueAt),
+                    title = task.title,
+                    note = task.note.ifBlank { priorityText(task.priority) },
+                    color = priorityColor(task.priority)
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun ScheduleLine(start: String, end: String, title: String, note: String, color: Color) {
+private fun ProductivityPulseCard(uiState: BoardUiState) {
+    val pulse = uiState.productivityPulse
+    DashboardCard(title = "Meao 效率脉搏", icon = "✦", action = "${pulse.score} 分 · ${pulse.label}") {
+        Text(
+            "今日完成 ${pulse.completedToday} 项 · 专注 ${pulse.focusedToday} 个番茄 · 逾期 ${pulse.overdue} 项",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (uiState.recommendations.isEmpty()) {
+            Text("当前没有待办，今天可以安心收尾。", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        } else {
+            Text("智能专注队列", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            uiState.recommendations.forEachIndexed { index, recommendation ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("${index + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(recommendation.task.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                recommendation.reasons.joinToString(" · "),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text("${recommendation.score}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleLine(time: String, title: String, note: String, color: Color) {
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))) {
         Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(start, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text(end, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text(time, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             Surface(modifier = Modifier.size(8.dp), shape = CircleShape, color = color) {}
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -273,13 +353,13 @@ private fun ScheduleLine(start: String, end: String, title: String, note: String
 }
 
 @Composable
-private fun HabitStatusCard() {
-    DashboardCard(title = "习惯 / 状态", icon = "♡", action = "记录状态  ›") {
+private fun HabitStatusCard(uiState: BoardUiState) {
+    DashboardCard(title = "今日真实状态", icon = "♡", action = "由本地记录生成") {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HabitTile(modifier = Modifier.weight(1f), icon = "☾", title = "睡眠", value = "7.2 小时", status = "良好", color = MaterialTheme.colorScheme.primary)
-            HabitTile(modifier = Modifier.weight(1f), icon = "💧", title = "喝水", value = "5 / 8 杯", status = "进行中", color = Color(0xFF6B86FF))
-            HabitTile(modifier = Modifier.weight(1f), icon = "♟", title = "运动", value = "30 分钟", status = "已达成", color = MaterialTheme.colorScheme.tertiary)
-            HabitTile(modifier = Modifier.weight(1f), icon = "☺", title = "心情", value = "愉快", status = "很棒", color = Color(0xFFFFB45F))
+            HabitTile(modifier = Modifier.weight(1f), icon = "☷", title = "待办", value = uiState.pendingTasks.size.toString(), status = "未完成", color = MaterialTheme.colorScheme.primary)
+            HabitTile(modifier = Modifier.weight(1f), icon = "✓", title = "完成", value = uiState.completedTodayCount.toString(), status = "今日", color = Color(0xFF6B86FF))
+            HabitTile(modifier = Modifier.weight(1f), icon = "⏱", title = "专注", value = uiState.todayFocusCount.toString(), status = "番茄", color = MaterialTheme.colorScheme.tertiary)
+            HabitTile(modifier = Modifier.weight(1f), icon = "!", title = "逾期", value = uiState.overdueCount.toString(), status = if (uiState.overdueCount == 0) "清零" else "待处理", color = Color(0xFFFFB45F))
         }
     }
 }
@@ -297,21 +377,28 @@ private fun HabitTile(modifier: Modifier, icon: String, title: String, value: St
 }
 
 @Composable
-private fun BoardModuleManagerCard(onDone: () -> Unit) {
-    var todayVisible by rememberSaveable { mutableStateOf(true) }
-    var pomodoroVisible by rememberSaveable { mutableStateOf(true) }
-    var ledgerVisible by rememberSaveable { mutableStateOf(true) }
-    var scheduleVisible by rememberSaveable { mutableStateOf(true) }
-    var habitsVisible by rememberSaveable { mutableStateOf(true) }
+private fun BoardModuleManagerCard(
+    todayVisible: Boolean,
+    pomodoroVisible: Boolean,
+    ledgerVisible: Boolean,
+    scheduleVisible: Boolean,
+    statusVisible: Boolean,
+    onTodayVisibleChange: (Boolean) -> Unit,
+    onPomodoroVisibleChange: (Boolean) -> Unit,
+    onLedgerVisibleChange: (Boolean) -> Unit,
+    onScheduleVisibleChange: (Boolean) -> Unit,
+    onStatusVisibleChange: (Boolean) -> Unit,
+    onDone: () -> Unit
+) {
     DashboardCard(title = "看板模块管理", icon = "▦", action = "完成") {
-        Text("拖拽排序后续接入；当前先实现显示 / 隐藏模板。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        ModuleSwitchRow("今日重点", todayVisible) { todayVisible = it }
-        ModuleSwitchRow("番茄进度", pomodoroVisible) { pomodoroVisible = it }
-        ModuleSwitchRow("支出速览", ledgerVisible) { ledgerVisible = it }
-        ModuleSwitchRow("日程", scheduleVisible) { scheduleVisible = it }
-        ModuleSwitchRow("习惯 / 状态", habitsVisible) { habitsVisible = it }
+        Text("显示设置会自动保存，下次打开仍然生效。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ModuleSwitchRow("今日重点", todayVisible, onTodayVisibleChange)
+        ModuleSwitchRow("番茄进度", pomodoroVisible, onPomodoroVisibleChange)
+        ModuleSwitchRow("支出速览", ledgerVisible, onLedgerVisibleChange)
+        ModuleSwitchRow("今日日程", scheduleVisible, onScheduleVisibleChange)
+        ModuleSwitchRow("今日状态", statusVisible, onStatusVisibleChange)
         Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onDone), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)) {
-            Text(modifier = Modifier.padding(13.dp), text = "恢复默认布局 / 收起", color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+            Text(modifier = Modifier.padding(13.dp), text = "完成", color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -351,3 +438,8 @@ private fun priorityText(priority: Int): String = when (priority) {
 
 private fun formatBoardDate(timestamp: Long): String = SimpleDateFormat("M月d日 E", Locale.getDefault()).format(Date(timestamp))
 private fun formatTaskTime(timestamp: Long?): String = timestamp?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) } ?: ""
+private fun currentWeekdayIndex(timestamp: Long): Int = java.util.Calendar.getInstance().apply {
+    timeInMillis = timestamp
+}.get(java.util.Calendar.DAY_OF_WEEK).let { day ->
+    if (day == java.util.Calendar.SUNDAY) 6 else day - java.util.Calendar.MONDAY
+}

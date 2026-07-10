@@ -134,16 +134,21 @@ fun TodoScreen(
                     quickAddTitle = quickAddTitle,
                     onQuickAddTitleChange = { quickAddTitle = it },
                     onQuickAddSubmit = {
-                        val title = quickAddTitle.trim()
-                        if (title.isNotEmpty()) {
+                        val parsed = parseSmartQuickAdd(
+                            input = quickAddTitle,
+                            listOptions = listOptions,
+                            fallbackListId = defaultTaskListIdFor(selectedList.id),
+                            fallbackDueAt = defaultDueAtFor(selectedList.id, displayMode, selectedDate)
+                        )
+                        if (parsed != null) {
                             viewModel.addTask(
-                                listId = defaultTaskListIdFor(selectedList.id),
-                                title = title,
+                                listId = parsed.listId,
+                                title = parsed.title,
                                 note = "",
-                                priority = 0,
-                                dueAt = defaultDueAtFor(selectedList.id, displayMode, selectedDate),
+                                priority = parsed.priority,
+                                dueAt = parsed.dueAt,
                                 hasDueTime = false,
-                                estimatedPomodoros = 0
+                                estimatedPomodoros = parsed.estimatedPomodoros
                             )
                             quickAddTitle = ""
                         }
@@ -185,7 +190,10 @@ fun TodoScreen(
             listOptions = listOptions,
             selectedListId = selectedList.id,
             onSelect = { selectedListId = it },
-            onAddList = { showAddListDialog = true },
+            onAddList = {
+                showListPickerDialog = false
+                showAddListDialog = true
+            },
             onRenameList = viewModel::renameTaskList,
             onRemoveList = { listId ->
                 if (selectedListId == listId) selectedListId = SMART_ALL

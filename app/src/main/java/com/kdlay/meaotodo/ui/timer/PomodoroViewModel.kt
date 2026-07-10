@@ -112,7 +112,7 @@ class PomodoroViewModel(
                 _messages.emit("任务标题不能为空")
                 return@launch
             }
-            taskRepository.addTask(
+            val added = taskRepository.addTask(
                 title = cleanTitle,
                 note = "从番茄页快速创建",
                 priority = 2,
@@ -120,7 +120,7 @@ class PomodoroViewModel(
                 hasDueTime = false,
                 estimatedPomodoros = estimatedPomodoros.coerceIn(1, 12)
             )
-            _messages.emit("已添加专注任务")
+            _messages.emit(if (added) "已添加专注任务" else "任务创建失败")
         }
     }
 
