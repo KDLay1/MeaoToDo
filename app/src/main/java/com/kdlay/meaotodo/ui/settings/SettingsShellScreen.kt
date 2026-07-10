@@ -51,7 +51,8 @@ internal fun SettingsShellScreen(
                     onTest = viewModel::testAiConnection,
                     onClearKey = viewModel::clearAiApiKey,
                     onAutoDailyBriefChange = viewModel::setAutoDailyBrief,
-                    onAutoEveningReviewChange = viewModel::setAutoEveningReview
+                    onAutoEveningReviewChange = viewModel::setAutoEveningReview,
+                    onUsageLimitsChange = viewModel::setAiUsageLimits
                 )
                 Text("洞察模块可在记录页的“洞察”中调整，并会自动保存。")
             }
@@ -60,7 +61,7 @@ internal fun SettingsShellScreen(
             SettingsSection(title = "番茄与任务", icon = "⏱") {
                 Text("默认时长与轮次请在番茄页直接调整，修改后会自动保存。")
                 Text(
-                    "结束通知尚未接入 Android 通知渠道；计时状态仍会在番茄页与看板实时显示。",
+                    "结束通知尚未接入 Android 通知渠道；计时状态仍会在专注页与全局专注条实时显示。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

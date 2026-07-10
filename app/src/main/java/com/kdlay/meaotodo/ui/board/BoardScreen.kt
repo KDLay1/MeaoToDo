@@ -116,7 +116,7 @@ private fun BoardTopHeader(onManageModules: () -> Unit) {
                 Text("⋮", fontSize = 28.sp, color = MaterialTheme.colorScheme.onBackground)
             }
         }
-        Text("看板", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text("个人洞察", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("${formatBoardDate(System.currentTimeMillis())} · ☀ · 适合专注", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Surface(
@@ -390,7 +390,7 @@ private fun BoardModuleManagerCard(
     onStatusVisibleChange: (Boolean) -> Unit,
     onDone: () -> Unit
 ) {
-    DashboardCard(title = "看板模块管理", icon = "▦", action = "完成") {
+    DashboardCard(title = "洞察模块管理", icon = "▦", action = "完成") {
         Text("显示设置会自动保存，下次打开仍然生效。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ModuleSwitchRow("今日重点", todayVisible, onTodayVisibleChange)
         ModuleSwitchRow("番茄进度", pomodoroVisible, onPomodoroVisibleChange)

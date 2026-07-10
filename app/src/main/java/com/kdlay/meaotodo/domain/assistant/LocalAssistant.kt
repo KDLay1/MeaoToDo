@@ -27,6 +27,7 @@ class LocalAssistantCommandParser {
 
         parseExpense(text)?.let { return it }
         parseFocus(text)?.let { return it }
+        parseExplicitTask(text)?.let { return it }
         if (text.endsWith("？") || text.endsWith("?") || text.startsWith("帮我") || text.startsWith("建议")) {
             return ParsedAssistantCommand(LocalCommandIntent.QUESTION, text, query = text, confidence = 0.8f, needsAi = true)
         }
@@ -87,6 +88,23 @@ class LocalAssistantCommandParser {
         )
     }
 
+    private fun parseExplicitTask(text: String): ParsedAssistantCommand? {
+        if (!TASK_PREFIX.containsMatchIn(text)) return null
+        val title = text.replace(TASK_PREFIX, "").trim()
+        if (title.isBlank()) return null
+        return ParsedAssistantCommand(
+            intent = LocalCommandIntent.TASK,
+            originalText = text,
+            pendingAction = PendingAction(
+                type = AssistantActionType.CREATE_TASK,
+                title = title,
+                explanation = "明确识别为本地任务草稿"
+            ),
+            confidence = 0.95f,
+            needsAi = false
+        )
+    }
+
     private fun inferExpenseCategory(text: String): String = when {
         listOf("饭", "餐", "吃", "外卖").any(text::contains) -> "餐饮"
         listOf("车", "公交", "地铁", "打车").any(text::contains) -> "交通"
@@ -96,8 +114,9 @@ class LocalAssistantCommandParser {
     }
 
     private companion object {
-        val EXPENSE_PREFIX = Regex("^(记账|支出|花了|消费)[：:]?\\s*")
-        val FOCUS_PREFIX = Regex("^(开始)?(专注|番茄)[：:]?\\s*")
+        val EXPENSE_PREFIX = Regex("^(记账|支出|花了|消费|expense)[：:]?\\s*", RegexOption.IGNORE_CASE)
+        val FOCUS_PREFIX = Regex("^(开始)?(专注|番茄|focus|pomodoro)[：:]?\\s*", RegexOption.IGNORE_CASE)
+        val TASK_PREFIX = Regex("^(任务|待办|todo)[：:]?\\s*", RegexOption.IGNORE_CASE)
         val AMOUNT = Regex("(\\d+(?:\\.\\d{1,2})?)\\s*(?:元|块)?")
         val MINUTES = Regex("(\\d{1,3})\\s*(?:分钟|min)", RegexOption.IGNORE_CASE)
     }

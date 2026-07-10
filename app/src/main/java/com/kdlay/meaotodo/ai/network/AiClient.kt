@@ -31,6 +31,16 @@ interface AiProviderConfigSource {
     suspend fun getConfig(): AiProviderConfig
 }
 
+interface AiUsagePolicy {
+    suspend fun beforeRequest()
+    suspend fun recordUsage(totalTokens: Int?)
+}
+
+object NoOpAiUsagePolicy : AiUsagePolicy {
+    override suspend fun beforeRequest() = Unit
+    override suspend fun recordUsage(totalTokens: Int?) = Unit
+}
+
 @Serializable
 internal data class ChatCompletionPayload(
     val model: String,

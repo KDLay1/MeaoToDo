@@ -9,6 +9,8 @@ import com.kdlay.meaotodo.ai.network.AiClient
 import com.kdlay.meaotodo.ai.network.AiCompletionRequest
 import com.kdlay.meaotodo.ai.network.AiProviderConfig
 import com.kdlay.meaotodo.ai.network.AiProviderConfigSource
+import com.kdlay.meaotodo.ai.network.AiUsagePolicy
+import com.kdlay.meaotodo.ai.network.NoOpAiUsagePolicy
 import com.kdlay.meaotodo.ai.prompt.AssistantPromptFactory
 import com.kdlay.meaotodo.domain.assistant.AssistantActionType
 import com.kdlay.meaotodo.domain.assistant.DailyContext
@@ -31,6 +33,7 @@ class AssistantAiService(
     private val providerConfigSource: AiProviderConfigSource,
     private val client: AiClient,
     private val dailyContextSource: DailyContextSource,
+    private val usagePolicy: AiUsagePolicy = NoOpAiUsagePolicy,
     private val prompts: AssistantPromptFactory = AssistantPromptFactory(),
     private val actionValidator: PendingActionValidator = PendingActionValidator(),
     private val json: Json = Json { ignoreUnknownKeys = true; explicitNulls = false }
@@ -55,7 +58,7 @@ class AssistantAiService(
         val context = dailyContextSource.context.first()
         val result = complete(prompts.taskDraft(context, userText))
         val parsed = decode<TaskDraftResponse>(result.content)
-        validateTaskDraft(parsed)
+        validateTaskDraft(parsed, context)
         return AiFeatureResult(parsed, result.content, result.totalTokens)
     }
 
@@ -104,7 +107,8 @@ class AssistantAiService(
     }
 
     private suspend fun complete(request: AiCompletionRequest) = runCatching {
-        client.complete(providerConfigSource.getConfig(), request)
+        usagePolicy.beforeRequest()
+        client.complete(providerConfigSource.getConfig(), request).also { usagePolicy.recordUsage(it.totalTokens) }
     }.getOrElse { error ->
         if (error is IllegalStateException && error !is AiConfigurationException) {
             throw AiConfigurationException(error.message ?: "AI 配置不可用")
@@ -122,9 +126,14 @@ class AssistantAiService(
             .getOrElse { throw AiStructuredOutputException("AI 返回内容不符合结构化协议") }
     }
 
-    private fun validateTaskDraft(response: TaskDraftResponse) {
+    private fun validateTaskDraft(response: TaskDraftResponse, context: DailyContext) {
         if (response.tasks.size > 5) throw AiStructuredOutputException("任务草稿超过 5 项")
-        response.tasks.forEach(::validateTask)
+        val existingTitles = context.pendingTasks.mapTo(hashSetOf()) { it.title.trim().lowercase() }
+        response.tasks.forEach { task ->
+            validateTask(task)
+            if (task.title.trim().lowercase() in existingTitles) throw AiStructuredOutputException("任务草稿与现有待办重复：${task.title}")
+            if (task.dueAt != null && task.dueAt < context.dayStart) throw AiStructuredOutputException("任务草稿包含过去日期：${task.title}")
+        }
     }
 
     private fun validateTask(task: AiTaskDraft) {

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -19,7 +20,13 @@ data class AiProviderSettings(
     val autoDailyBrief: Boolean = false,
     val autoEveningReview: Boolean = false,
     val lastDailyBriefDay: String = "",
-    val lastEveningReviewDay: String = ""
+    val lastEveningReviewDay: String = "",
+    val dailyRequestLimit: Int = 20,
+    val monthlyTokenLimit: Int = 200_000,
+    val usageDay: String = "",
+    val requestsToday: Int = 0,
+    val usageMonth: String = "",
+    val tokensThisMonth: Int = 0
 ) {
     val isConfigured: Boolean
         get() = baseUrl.isNotBlank() && model.isNotBlank() && hasApiKey
@@ -41,7 +48,13 @@ class AiSettingsStore(
             autoDailyBrief = preferences[AUTO_DAILY_BRIEF] ?: false,
             autoEveningReview = preferences[AUTO_EVENING_REVIEW] ?: false,
             lastDailyBriefDay = preferences[LAST_DAILY_BRIEF_DAY].orEmpty(),
-            lastEveningReviewDay = preferences[LAST_EVENING_REVIEW_DAY].orEmpty()
+            lastEveningReviewDay = preferences[LAST_EVENING_REVIEW_DAY].orEmpty(),
+            dailyRequestLimit = (preferences[DAILY_REQUEST_LIMIT] ?: 20).coerceIn(1, 200),
+            monthlyTokenLimit = (preferences[MONTHLY_TOKEN_LIMIT] ?: 200_000).coerceIn(10_000, 5_000_000),
+            usageDay = preferences[USAGE_DAY].orEmpty(),
+            requestsToday = (preferences[REQUESTS_TODAY] ?: 0).coerceAtLeast(0),
+            usageMonth = preferences[USAGE_MONTH].orEmpty(),
+            tokensThisMonth = (preferences[TOKENS_THIS_MONTH] ?: 0).coerceAtLeast(0)
         )
     }
 
@@ -97,6 +110,38 @@ class AiSettingsStore(
         dataStore.edit { it[LAST_EVENING_REVIEW_DAY] = dayKey }
     }
 
+    suspend fun setUsageLimits(dailyRequests: Int, monthlyTokens: Int) {
+        dataStore.edit { preferences ->
+            preferences[DAILY_REQUEST_LIMIT] = dailyRequests.coerceIn(1, 200)
+            preferences[MONTHLY_TOKEN_LIMIT] = monthlyTokens.coerceIn(10_000, 5_000_000)
+        }
+    }
+
+    suspend fun consumeRequest(dayKey: String, monthKey: String) {
+        dataStore.edit { preferences ->
+            if (preferences[USAGE_DAY] != dayKey) {
+                preferences[USAGE_DAY] = dayKey
+                preferences[REQUESTS_TODAY] = 0
+            }
+            if (preferences[USAGE_MONTH] != monthKey) {
+                preferences[USAGE_MONTH] = monthKey
+                preferences[TOKENS_THIS_MONTH] = 0
+            }
+            preferences[REQUESTS_TODAY] = (preferences[REQUESTS_TODAY] ?: 0) + 1
+        }
+    }
+
+    suspend fun recordTokens(monthKey: String, tokens: Int) {
+        if (tokens <= 0) return
+        dataStore.edit { preferences ->
+            if (preferences[USAGE_MONTH] != monthKey) {
+                preferences[USAGE_MONTH] = monthKey
+                preferences[TOKENS_THIS_MONTH] = 0
+            }
+            preferences[TOKENS_THIS_MONTH] = (preferences[TOKENS_THIS_MONTH] ?: 0) + tokens
+        }
+    }
+
     companion object {
         fun normalizeBaseUrl(value: String): String {
             val clean = value.trim().trimEnd('/')
@@ -121,5 +166,11 @@ class AiSettingsStore(
         private val AUTO_EVENING_REVIEW = booleanPreferencesKey("auto_evening_review")
         private val LAST_DAILY_BRIEF_DAY = stringPreferencesKey("last_daily_brief_day")
         private val LAST_EVENING_REVIEW_DAY = stringPreferencesKey("last_evening_review_day")
+        private val DAILY_REQUEST_LIMIT = intPreferencesKey("daily_request_limit")
+        private val MONTHLY_TOKEN_LIMIT = intPreferencesKey("monthly_token_limit")
+        private val USAGE_DAY = stringPreferencesKey("usage_day")
+        private val REQUESTS_TODAY = intPreferencesKey("requests_today")
+        private val USAGE_MONTH = stringPreferencesKey("usage_month")
+        private val TOKENS_THIS_MONTH = intPreferencesKey("tokens_this_month")
     }
 }

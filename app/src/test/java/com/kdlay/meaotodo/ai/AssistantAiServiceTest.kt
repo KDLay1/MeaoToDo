@@ -5,6 +5,7 @@ import com.kdlay.meaotodo.ai.network.AiCompletionRequest
 import com.kdlay.meaotodo.ai.network.AiCompletionResult
 import com.kdlay.meaotodo.ai.network.AiProviderConfig
 import com.kdlay.meaotodo.ai.network.AiProviderConfigSource
+import com.kdlay.meaotodo.ai.network.AiUsagePolicy
 import com.kdlay.meaotodo.ai.prompt.AssistantPromptFactory
 import com.kdlay.meaotodo.domain.assistant.AssistantTaskSnapshot
 import com.kdlay.meaotodo.domain.assistant.DailyContext
@@ -52,14 +53,47 @@ class AssistantAiServiceTest {
         assertTrue(request.userPrompt.contains("clarifying_question"))
     }
 
-    private fun service(client: FakeAiClient) = AssistantAiService(
+    @Test
+    fun everyCapabilityPrompt_keepsGroundingAndJsonRules() {
+        val factory = AssistantPromptFactory()
+        val requests = listOf(
+            factory.taskDraft(context(), "整理任务"),
+            factory.dailyBrief(context()),
+            factory.eveningReview(context(), "今天有些累"),
+            factory.adjustPlan(context(), "只剩一小时")
+        )
+
+        requests.forEach { request ->
+            assertTrue(request.systemPrompt.contains("不得虚构"))
+            assertTrue(request.systemPrompt.contains("待确认"))
+            assertTrue(request.systemPrompt.contains("只输出合法 JSON"))
+            assertTrue(request.requireJsonObject)
+        }
+    }
+
+    @Test
+    fun completion_recordsUsageAroundRequest() = runTest {
+        val usage = FakeUsagePolicy()
+        val client = FakeAiClient(
+            """{"summary":"无任务","clarifying_question":null,"tasks":[]}"""
+        )
+        val service = service(client, usage)
+
+        service.draftTasks("整理一下")
+
+        assertEquals(1, usage.beforeCount)
+        assertEquals(42, usage.recordedTokens)
+    }
+
+    private fun service(client: FakeAiClient, usagePolicy: AiUsagePolicy? = null) = AssistantAiService(
         providerConfigSource = object : AiProviderConfigSource {
             override suspend fun getConfig() = AiProviderConfig("https://example.com/v1", "test-model", "secret")
         },
         client = client,
         dailyContextSource = object : DailyContextSource {
             override val context = flowOf(context())
-        }
+        },
+        usagePolicy = usagePolicy ?: com.kdlay.meaotodo.ai.network.NoOpAiUsagePolicy
     )
 
     private fun context() = DailyContext(
@@ -84,6 +118,19 @@ class AssistantAiServiceTest {
         override suspend fun complete(config: AiProviderConfig, request: AiCompletionRequest): AiCompletionResult {
             lastRequest = request
             return AiCompletionResult(response, totalTokens = 42)
+        }
+    }
+
+    private class FakeUsagePolicy : AiUsagePolicy {
+        var beforeCount = 0
+        var recordedTokens: Int? = null
+
+        override suspend fun beforeRequest() {
+            beforeCount++
+        }
+
+        override suspend fun recordUsage(totalTokens: Int?) {
+            recordedTokens = totalTokens
         }
     }
 }

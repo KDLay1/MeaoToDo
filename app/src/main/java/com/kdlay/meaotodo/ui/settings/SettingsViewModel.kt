@@ -61,6 +61,10 @@ class SettingsViewModel(
         aiSettingsStore.setAutoEveningReview(enabled)
     }
 
+    fun setAiUsageLimits(dailyRequests: Int, monthlyTokens: Int) = viewModelScope.launch {
+        aiSettingsStore.setUsageLimits(dailyRequests, monthlyTokens)
+    }
+
     fun clearAiStatus() {
         aiStatus.value = AiSettingsStatus.Idle
     }

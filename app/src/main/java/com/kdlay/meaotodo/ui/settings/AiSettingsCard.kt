@@ -29,7 +29,8 @@ internal fun AiSettingsCard(
     onTest: () -> Unit,
     onClearKey: () -> Unit,
     onAutoDailyBriefChange: (Boolean) -> Unit,
-    onAutoEveningReviewChange: (Boolean) -> Unit
+    onAutoEveningReviewChange: (Boolean) -> Unit,
+    onUsageLimitsChange: (dailyRequests: Int, monthlyTokens: Int) -> Unit
 ) {
     var baseUrl by rememberSaveable { mutableStateOf("") }
     var model by rememberSaveable { mutableStateOf("") }
@@ -102,5 +103,15 @@ internal fun AiSettingsCard(
             checked = settings.autoEveningReview,
             onCheckedChange = onAutoEveningReviewChange
         )
+        Text("用量：今日 ${settings.requestsToday}/${settings.dailyRequestLimit} 次 · 本月 ${settings.tokensThisMonth}/${settings.monthlyTokenLimit} tokens")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                Triple(10, 100_000, "节制"),
+                Triple(20, 200_000, "标准"),
+                Triple(50, 500_000, "宽松")
+            ).forEach { (requests, tokens, label) ->
+                OutlinedButton(onClick = { onUsageLimitsChange(requests, tokens) }) { Text(label) }
+            }
+        }
     }
 }

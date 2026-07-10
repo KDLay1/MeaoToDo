@@ -37,6 +37,15 @@ class LocalAssistantTest {
     }
 
     @Test
+    fun explicitTask_staysOffline() {
+        val parsed = parser.parse("todo write report")
+
+        assertEquals(LocalCommandIntent.TASK, parsed.intent)
+        assertFalse(parsed.needsAi)
+        assertEquals("write report", parsed.pendingAction?.title)
+    }
+
+    @Test
     fun validator_rejectsUnknownTaskAndInvalidExpense() {
         val context = DailyContext(
             generatedAt = 0, dayStart = 0, dayEnd = 1, pendingTasks = emptyList(), todayTasks = emptyList(),

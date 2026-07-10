@@ -139,6 +139,15 @@ class AssistantViewModel(
         )
     }
 
+    fun updateAction(index: Int, action: PendingAction) {
+        if (index !in _uiState.value.pendingActions.indices) return
+        _uiState.value = _uiState.value.copy(
+            pendingActions = _uiState.value.pendingActions.toMutableList().also { it[index] = action },
+            message = "草稿已更新",
+            error = null
+        )
+    }
+
     fun clearFeedback() {
         _uiState.value = _uiState.value.copy(message = null, error = null)
     }

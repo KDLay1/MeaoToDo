@@ -38,6 +38,20 @@ fun AssistantScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var input by rememberSaveable { mutableStateOf("") }
+    var editingActionIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+
+    editingActionIndex?.let { index ->
+        state.pendingActions.getOrNull(index)?.let { action ->
+            PendingActionEditorDialog(
+                action = action,
+                onDismiss = { editingActionIndex = null },
+                onSave = { updated ->
+                    viewModel.updateAction(index, updated)
+                    editingActionIndex = null
+                }
+            )
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -138,6 +152,7 @@ fun AssistantScreen(
                     action = action,
                     enabled = !state.isBusy,
                     onConfirm = { viewModel.confirmAction(index) },
+                    onEdit = { editingActionIndex = index },
                     onDiscard = { viewModel.discardAction(index) }
                 )
             }
@@ -200,6 +215,7 @@ private fun PendingActionCard(
     action: PendingAction,
     enabled: Boolean,
     onConfirm: () -> Unit,
+    onEdit: () -> Unit,
     onDiscard: () -> Unit
 ) {
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
@@ -211,6 +227,7 @@ private fun PendingActionCard(
             action.estimatedPomodoros?.takeIf { it > 0 }?.let { Text("预计：$it 个番茄") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onConfirm, enabled = enabled) { Text("确认执行") }
+                OutlinedButton(onClick = onEdit, enabled = enabled) { Text("编辑") }
                 OutlinedButton(onClick = onDiscard, enabled = enabled) { Text("放弃") }
             }
         }

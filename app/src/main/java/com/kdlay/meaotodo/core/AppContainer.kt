@@ -10,6 +10,7 @@ import com.kdlay.meaotodo.data.repository.TaskRepository
 import com.kdlay.meaotodo.core.settings.AppSettingsStore
 import com.kdlay.meaotodo.ai.config.AiSettingsStore
 import com.kdlay.meaotodo.ai.config.StoredAiProviderConfigSource
+import com.kdlay.meaotodo.ai.config.StoredAiUsagePolicy
 import com.kdlay.meaotodo.ai.network.OpenAiCompatibleClient
 import com.kdlay.meaotodo.ai.AssistantAiService
 import com.kdlay.meaotodo.domain.assistant.DailyContextRepository
@@ -21,6 +22,7 @@ class AppContainer(context: Context) {
     val settingsStore = AppSettingsStore(appContext)
     val aiSettingsStore = AiSettingsStore(appContext)
     val aiProviderConfigSource = StoredAiProviderConfigSource(aiSettingsStore)
+    val aiUsagePolicy = StoredAiUsagePolicy(aiSettingsStore)
     val aiClient = OpenAiCompatibleClient()
 
     val database: MeaoDatabase = Room.databaseBuilder(
@@ -47,7 +49,8 @@ class AppContainer(context: Context) {
     val assistantAiService = AssistantAiService(
         providerConfigSource = aiProviderConfigSource,
         client = aiClient,
-        dailyContextSource = dailyContextRepository
+        dailyContextSource = dailyContextRepository,
+        usagePolicy = aiUsagePolicy
     )
     val assistantActionExecutor = AssistantActionExecutor(
         taskRepository = taskRepository,
