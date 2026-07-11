@@ -55,7 +55,7 @@ internal data class ChatCompletionPayload(
 internal data class ChatMessage(val role: String, val content: String)
 
 @Serializable
-internal data class ResponseFormat(val type: String = "json_object")
+internal data class ResponseFormat(val type: String)
 
 @Serializable
 internal data class ChatCompletionResponse(

@@ -19,16 +19,7 @@ class OpenAiCompatibleClient(
         require(config.apiKey.isNotBlank()) { "API Key 不能为空" }
         require(config.model.isNotBlank()) { "模型名称不能为空" }
         val endpoint = completionEndpoint(config.baseUrl)
-        val payload = ChatCompletionPayload(
-            model = config.model,
-            messages = listOf(
-                ChatMessage(role = "system", content = request.systemPrompt),
-                ChatMessage(role = "user", content = request.userPrompt)
-            ),
-            temperature = request.temperature.coerceIn(0.0, 2.0),
-            max_tokens = request.maxOutputTokens.coerceIn(64, 8_192),
-            response_format = if (request.requireJsonObject) ResponseFormat() else null
-        )
+        val requestBody = encodeRequest(config, request)
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = connectTimeoutMillis
@@ -40,7 +31,7 @@ class OpenAiCompatibleClient(
         }
         try {
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { writer ->
-                writer.write(json.encodeToString(payload))
+                writer.write(requestBody)
             }
             val status = connection.responseCode
             val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
@@ -69,6 +60,19 @@ class OpenAiCompatibleClient(
         val clean = baseUrl.trim().trimEnd('/')
         return if (clean.endsWith("/chat/completions")) clean else "$clean/chat/completions"
     }
+
+    internal fun encodeRequest(config: AiProviderConfig, request: AiCompletionRequest): String = json.encodeToString(
+        ChatCompletionPayload(
+            model = config.model,
+            messages = listOf(
+                ChatMessage(role = "system", content = request.systemPrompt),
+                ChatMessage(role = "user", content = request.userPrompt)
+            ),
+            temperature = request.temperature.coerceIn(0.0, 2.0),
+            max_tokens = request.maxOutputTokens.coerceIn(64, 8_192),
+            response_format = if (request.requireJsonObject) ResponseFormat(type = "json_object") else null
+        )
+    )
 
     private fun sanitizeError(body: String): String = body
         .replace(Regex("(?i)(api[_ -]?key|authorization|bearer)\\s*[:=]?\\s*[^\\s\"']+"), "$1 [已隐藏]")
