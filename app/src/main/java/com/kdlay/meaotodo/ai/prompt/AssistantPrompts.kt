@@ -4,6 +4,9 @@ import com.kdlay.meaotodo.ai.network.AiCompletionRequest
 import com.kdlay.meaotodo.domain.assistant.DailyContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class AssistantPromptFactory(
     private val json: Json = Json { encodeDefaults = true; explicitNulls = false }
@@ -13,6 +16,7 @@ class AssistantPromptFactory(
         userPrompt = """
             当前本地上下文：
             ${json.encodeToString(context)}
+            当前本地日期：${formatDate(context.generatedAt)}
 
             用户原话：
             ${userText.trim()}
@@ -25,7 +29,7 @@ class AssistantPromptFactory(
                 {
                   "title": "以动词开头的可执行任务",
                   "note": "完成标准或必要背景",
-                  "due_at": null,
+                  "due_date": null,
                   "priority": 0,
                   "estimated_pomodoros": 0,
                   "reason": "为什么这样拆分"
@@ -42,6 +46,7 @@ class AssistantPromptFactory(
         userPrompt = """
             当前本地上下文：
             ${json.encodeToString(context)}
+            当前本地日期：${formatDate(context.generatedAt)}
 
             只返回以下 JSON 结构：
             {
@@ -62,6 +67,7 @@ class AssistantPromptFactory(
         userPrompt = """
             当前本地上下文：
             ${json.encodeToString(context)}
+            当前本地日期：${formatDate(context.generatedAt)}
 
             用户补充：
             ${userReflection.trim().ifBlank { "用户没有补充主观感受" }}
@@ -74,7 +80,15 @@ class AssistantPromptFactory(
               "possible_causes": ["明确标注为推测的可能原因"],
               "wins": ["值得保留的做法"],
               "tomorrow_focus": "明天唯一最重要的调整",
-              "suggested_actions": []
+              "suggested_actions": [
+                {
+                  "type": "RESCHEDULE_TASK",
+                  "title": "动作标题",
+                  "explanation": "有事实依据的解释",
+                  "task_id": "上下文中的任务 ID",
+                  "due_at": 1760000000000
+                }
+              ]
             }
         """.trimIndent(),
         temperature = 0.25,
@@ -86,6 +100,7 @@ class AssistantPromptFactory(
         userPrompt = """
             当前本地上下文：
             ${json.encodeToString(context)}
+            当前本地日期：${formatDate(context.generatedAt)}
 
             用户的新情况或限制：
             ${constraint.trim()}
@@ -135,7 +150,7 @@ class AssistantPromptFactory(
             当前能力：把一段自然语言转换为任务草稿。
             每个任务必须有明确动作和可验收结果。优先生成 1 至 5 项，只有确有依赖时才拆分。
             priority 只能是 0、1、2、3；estimated_pomodoros 只能是 0 至 24。
-            due_at 使用 Unix 毫秒时间戳；无法可靠判断时必须为 null。
+            due_date 使用 YYYY-MM-DD；无法可靠判断时必须为 null。禁止输出时间戳或其他日期格式。
             不要创建与 pendingTasks 中明显重复的任务；可在 summary 中指出重复。
         """.trimIndent()
 
@@ -154,6 +169,8 @@ class AssistantPromptFactory(
             当前能力：生成晚间复盘。
             facts 必须是可由上下文直接证明的事实；patterns 与 possible_causes 必须分开。
             对单日数据不要声称形成长期规律。suggested_actions 只允许输出待确认动作，不自动执行。
+            suggested_actions 只允许 RESCHEDULE_TASK 或 COMPLETE_TASK；task_id 必须来自 pendingTasks。
+            RESCHEDULE_TASK 必须给出未来的 due_at Unix 毫秒时间戳；COMPLETE_TASK 不得伪装成已执行。
         """.trimIndent()
 
         private val PLAN_ADJUSTMENT_POLICY = """
@@ -163,6 +180,11 @@ class AssistantPromptFactory(
             先保留真正重要且现实可做的任务，再建议延期或缩小范围。
             suggested_actions 最多 5 项；任务 ID 必须来自 pendingTasks。
             不建议删除任务；不确定时只解释，不生成动作。
+            suggested_actions 的 type 只允许 RESCHEDULE_TASK、COMPLETE_TASK 或 START_FOCUS。
+            START_FOCUS 的 focus_minutes 必须为 5 至 90；RESCHEDULE_TASK 必须提供未来 due_at；所有 task_id 必须来自 pendingTasks。
         """.trimIndent()
     }
+
+    private fun formatDate(timestamp: Long): String =
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(timestamp))
 }

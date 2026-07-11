@@ -19,6 +19,9 @@ import com.kdlay.meaotodo.domain.assistant.PendingAction
 import com.kdlay.meaotodo.domain.assistant.PendingActionValidator
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.text.ParsePosition
 
 class AiConfigurationException(message: String) : IllegalStateException(message)
 class AiStructuredOutputException(message: String) : IllegalArgumentException(message)
@@ -97,7 +100,7 @@ class AssistantAiService(
             title = draft.title.trim(),
             explanation = draft.reason.ifBlank { "由 AI 整理的任务草稿" },
             note = draft.note.trim().takeIf { it.isNotBlank() },
-            dueAt = draft.dueAt,
+            dueAt = parseDueDate(draft.dueDate),
             priority = draft.priority,
             estimatedPomodoros = draft.estimatedPomodoros
         )
@@ -132,7 +135,8 @@ class AssistantAiService(
         response.tasks.forEach { task ->
             validateTask(task)
             if (task.title.trim().lowercase() in existingTitles) throw AiStructuredOutputException("任务草稿与现有待办重复：${task.title}")
-            if (task.dueAt != null && task.dueAt < context.dayStart) throw AiStructuredOutputException("任务草稿包含过去日期：${task.title}")
+            val dueAt = parseDueDate(task.dueDate)
+            if (dueAt != null && dueAt < context.dayStart) throw AiStructuredOutputException("任务草稿包含过去日期：${task.title}")
         }
     }
 
@@ -147,5 +151,16 @@ class AssistantAiService(
             val validation = actionValidator.validate(action, context)
             if (!validation.isValid) throw AiStructuredOutputException(validation.errors.joinToString("；"))
         }
+    }
+
+    private fun parseDueDate(value: String?): Long? {
+        val clean = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val format = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply { isLenient = false }
+        val position = ParsePosition(0)
+        val parsed = format.parse(clean, position)
+        if (parsed == null || position.index != clean.length) {
+            throw AiStructuredOutputException("任务日期格式无效：$clean")
+        }
+        return parsed.time
     }
 }

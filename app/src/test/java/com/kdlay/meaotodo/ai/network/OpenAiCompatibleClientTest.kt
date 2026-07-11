@@ -45,4 +45,22 @@ class OpenAiCompatibleClientTest {
 
         assertEquals(false, Json.parseToJsonElement(body).jsonObject.containsKey("response_format"))
     }
+
+    @Test
+    fun responseFormat400_requestsOnePromptOnlyRetry() {
+        assertEquals(
+            true,
+            client.shouldRetryWithoutResponseFormat(400, "{\"error\":{\"message\":\"response_format is unsupported\"}}")
+        )
+        assertEquals(false, client.shouldRetryWithoutResponseFormat(401, "response_format"))
+        assertEquals(false, client.shouldRetryWithoutResponseFormat(400, "model not found"))
+    }
+
+    @Test
+    fun extractProviderError_returnsNestedMessageInsteadOfRawEnvelope() {
+        assertEquals(
+            "response_format is unsupported",
+            client.extractProviderError("{\"error\":{\"message\":\"response_format is unsupported\",\"code\":\"invalid_request_error\"}}")
+        )
+    }
 }

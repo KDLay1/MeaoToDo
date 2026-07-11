@@ -15,7 +15,7 @@ data class TaskDraftResponse(
 data class AiTaskDraft(
     val title: String,
     val note: String = "",
-    @SerialName("due_at") val dueAt: Long? = null,
+    @SerialName("due_date") val dueDate: String? = null,
     val priority: Int = 0,
     @SerialName("estimated_pomodoros") val estimatedPomodoros: Int = 0,
     val reason: String = ""
