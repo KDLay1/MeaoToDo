@@ -22,7 +22,8 @@ class AppSettingsStore(private val context: Context) {
             targetFocusCount = (preferences[POMODORO_TARGET_FOCUS_COUNT] ?: PomodoroPreferences.DEFAULT_TARGET_FOCUS_COUNT)
                 .coerceIn(1, 12),
             clockStyle = preferences[POMODORO_CLOCK_STYLE]?.takeIf { it in PomodoroPreferences.CLOCK_STYLES }
-                ?: PomodoroPreferences.DEFAULT_CLOCK_STYLE
+                ?: PomodoroPreferences.DEFAULT_CLOCK_STYLE,
+            notificationsEnabled = preferences[POMODORO_NOTIFICATIONS_ENABLED] ?: false
         )
     }
 
@@ -77,11 +78,15 @@ class AppSettingsStore(private val context: Context) {
         }
     }
 
+    suspend fun setPomodoroNotificationsEnabled(enabled: Boolean) =
+        setBoolean(POMODORO_NOTIFICATIONS_ENABLED, enabled)
+
     private companion object {
         val POMODORO_FOCUS_MINUTES = intPreferencesKey("pomodoro_focus_minutes")
         val POMODORO_BREAK_MINUTES = intPreferencesKey("pomodoro_break_minutes")
         val POMODORO_TARGET_FOCUS_COUNT = intPreferencesKey("pomodoro_target_focus_count")
         val POMODORO_CLOCK_STYLE = stringPreferencesKey("pomodoro_clock_style")
+        val POMODORO_NOTIFICATIONS_ENABLED = booleanPreferencesKey("pomodoro_notifications_enabled")
         val BOARD_SHOW_TODAY = booleanPreferencesKey("board_show_today")
         val BOARD_SHOW_POMODORO = booleanPreferencesKey("board_show_pomodoro")
         val BOARD_SHOW_LEDGER = booleanPreferencesKey("board_show_ledger")
@@ -104,7 +109,8 @@ data class PomodoroPreferences(
     val focusDurationMinutes: Int = DEFAULT_FOCUS_MINUTES,
     val breakDurationMinutes: Int = DEFAULT_BREAK_MINUTES,
     val targetFocusCount: Int = DEFAULT_TARGET_FOCUS_COUNT,
-    val clockStyle: String = DEFAULT_CLOCK_STYLE
+    val clockStyle: String = DEFAULT_CLOCK_STYLE,
+    val notificationsEnabled: Boolean = false
 ) {
     companion object {
         const val DEFAULT_FOCUS_MINUTES = 25

@@ -2,10 +2,12 @@ package com.kdlay.meaotodo.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 const val DEFAULT_TASK_LIST_ID = "inbox"
 
 @Entity(tableName = "tasks")
+@Serializable
 data class TaskEntity(
     @PrimaryKey val id: String,
     val listId: String = DEFAULT_TASK_LIST_ID,

@@ -14,10 +14,28 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import android.Manifest
+import android.os.Build
+import android.content.pm.PackageManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.kdlay.meaotodo.ui.components.MeaoSettingsSwitchRow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +51,34 @@ internal fun SettingsShellScreen(
     val preferences by viewModel.preferences.collectAsState()
     val aiSettings by viewModel.aiSettings.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
+    val dataTransferStatus by viewModel.dataTransferStatus.collectAsState()
+    val pomodoroPreferences by viewModel.pomodoroPreferences.collectAsState()
+    val context = LocalContext.current
+    var pendingImportUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let(viewModel::exportBackup) }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> pendingImportUri = uri }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.setPomodoroNotificationsEnabled(granted) }
+
+    pendingImportUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            title = { Text("恢复本地数据？") },
+            text = { Text("备份中的记录将按 ID 合并到当前数据库，不会导入 API Key，也不会自动删除当前记录。") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.importBackup(uri)
+                    pendingImportUri = null
+                }) { Text("确认恢复") }
+            },
+            dismissButton = { OutlinedButton(onClick = { pendingImportUri = null }) { Text("取消") } }
+        )
+    }
 
     LazyColumn(
         modifier = modifier
@@ -60,10 +106,23 @@ internal fun SettingsShellScreen(
         item {
             SettingsSection(title = "番茄与任务", icon = "⏱") {
                 Text("默认时长与轮次请在番茄页直接调整，修改后会自动保存。")
-                Text(
-                    "结束通知尚未接入 Android 通知渠道；计时状态仍会在专注页与全局专注条实时显示。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                MeaoSettingsSwitchRow(
+                    icon = "铃",
+                    title = "阶段结束通知",
+                    subtitle = "专注或休息结束后发送系统通知",
+                    checked = pomodoroPreferences.notificationsEnabled,
+                    onCheckedChange = { enabled ->
+                        if (!enabled) {
+                            viewModel.setPomodoroNotificationsEnabled(false)
+                        } else if (
+                            Build.VERSION.SDK_INT >= 33 &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            viewModel.setPomodoroNotificationsEnabled(true)
+                        }
+                    }
                 )
             }
         }
@@ -92,10 +151,29 @@ internal fun SettingsShellScreen(
                     }
                 }
                 Text(
-                    "数据导出尚未实现；当前数据保存在本机 Room 数据库中。",
+                    "备份只包含任务、清单、专注和账本记录；不会包含 API Key。恢复采用安全合并，不会先清空当前数据。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val date = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+                            exportLauncher.launch("MeaoToDo-backup-$date.json")
+                        },
+                        enabled = dataTransferStatus !is DataTransferStatus.Working
+                    ) { Text("导出备份") }
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                        enabled = dataTransferStatus !is DataTransferStatus.Working
+                    ) { Text("导入恢复") }
+                }
+                when (val status = dataTransferStatus) {
+                    DataTransferStatus.Idle -> Unit
+                    is DataTransferStatus.Working -> Text(status.message)
+                    is DataTransferStatus.Success -> Text(status.message)
+                    is DataTransferStatus.Error -> Text("错误：${status.message}")
+                }
             }
         }
     }

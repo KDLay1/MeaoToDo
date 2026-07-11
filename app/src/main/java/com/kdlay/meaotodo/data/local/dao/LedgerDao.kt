@@ -17,8 +17,14 @@ interface LedgerDao {
     @Query("SELECT * FROM ledger_entries WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): LedgerEntryEntity?
 
+    @Query("SELECT * FROM ledger_entries")
+    suspend fun allForBackup(): List<LedgerEntryEntity>
+
     @Upsert
     suspend fun upsert(entry: LedgerEntryEntity)
+
+    @Upsert
+    suspend fun upsertAll(entries: List<LedgerEntryEntity>)
 
     @Query("UPDATE ledger_entries SET deletedAt = :deletedAt, updatedAt = :deletedAt WHERE id = :id")
     suspend fun softDelete(id: String, deletedAt: Long)

@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -538,9 +539,9 @@ private fun PomodoroDurationSheet(
     onDismiss: () -> Unit,
     onApply: (Int, Int, Int) -> Unit
 ) {
-    var draftFocus by rememberSaveable(focusMinutes) { mutableStateOf(focusMinutes.coerceIn(1, 180)) }
-    var draftBreak by rememberSaveable(breakMinutes) { mutableStateOf(breakMinutes.coerceIn(1, 120)) }
-    var draftRounds by rememberSaveable(rounds) { mutableStateOf(rounds.coerceIn(1, 12)) }
+    var draftFocus by rememberSaveable(focusMinutes) { mutableIntStateOf(focusMinutes.coerceIn(1, 180)) }
+    var draftBreak by rememberSaveable(breakMinutes) { mutableIntStateOf(breakMinutes.coerceIn(1, 120)) }
+    var draftRounds by rememberSaveable(rounds) { mutableIntStateOf(rounds.coerceIn(1, 12)) }
 
     MeaoBottomSheet(
         title = "调整番茄参数",
@@ -676,14 +677,9 @@ private fun PomodoroSettingsSheet(
     onAdjustDuration: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var soundEnabled by rememberSaveable { mutableStateOf(false) }
-    var strictMode by rememberSaveable { mutableStateOf(false) }
-
-    MeaoBottomSheet(title = "番茄设置", subtitle = "先接入常用设置，复杂提醒和白噪音后续再接系统能力。", onDismiss = onDismiss) {
+    MeaoBottomSheet(title = "专注设置", subtitle = "调整真实生效的计时参数；阶段通知可在应用设置中开启。", onDismiss = onDismiss) {
         MeaoActionRow(icon = "◷", title = "时间与轮数", subtitle = "滚轮自定义专注、休息和轮数", onClick = onAdjustDuration)
         MeaoActionRow(icon = "▤", title = if (clockStyle == "flip") "翻页钟样式" else "数字钟样式", subtitle = "点击切换计时器显示风格", onClick = onToggleClock)
-        ToggleLikeRow(title = "白噪音", subtitle = "先保存本地开关，后续接入音频播放", checked = soundEnabled, onClick = { soundEnabled = !soundEnabled })
-        ToggleLikeRow(title = "严格模式", subtitle = "先保存本地开关，后续限制退出和分心操作", checked = strictMode, onClick = { strictMode = !strictMode })
     }
 }
 
@@ -701,7 +697,7 @@ private fun PomodoroTaskManagerSheet(
     var filterName by rememberSaveable { mutableStateOf(PomodoroTaskFilter.All.name) }
     var sortName by rememberSaveable { mutableStateOf(PomodoroTaskSort.Smart.name) }
     var quickTitle by rememberSaveable { mutableStateOf("") }
-    var quickPomodoros by rememberSaveable { mutableStateOf(1) }
+    var quickPomodoros by rememberSaveable { mutableIntStateOf(1) }
     val focusManager = LocalFocusManager.current
     val filter = PomodoroTaskFilter.valueOf(filterName)
     val sort = PomodoroTaskSort.valueOf(sortName)
@@ -844,11 +840,6 @@ private fun PomodoroTaskManagerRow(task: TaskEntity, selected: Boolean, hasActiv
             }
         }
     }
-}
-
-@Composable
-private fun ToggleLikeRow(title: String, subtitle: String, checked: Boolean, onClick: () -> Unit) {
-    MeaoActionRow(icon = if (checked) "开" else "关", title = title, subtitle = subtitle, trailing = if (checked) "已开启" else "已关闭", onClick = onClick)
 }
 
 @Composable

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kdlay.meaotodo.core.settings.AppSettingsStore
 import com.kdlay.meaotodo.core.settings.PomodoroPreferences
+import com.kdlay.meaotodo.core.notification.PomodoroNotifier
 import com.kdlay.meaotodo.data.local.entity.PomodoroRunEntity
 import com.kdlay.meaotodo.data.local.entity.PomodoroSessionEntity
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
@@ -25,7 +26,8 @@ import kotlinx.coroutines.launch
 class PomodoroViewModel(
     private val pomodoroRepository: PomodoroRepository,
     private val settingsStore: AppSettingsStore,
-    private val taskRepository: TaskRepository
+    private val taskRepository: TaskRepository,
+    private val notifier: PomodoroNotifier
 ) : ViewModel() {
     private val nowMillis = MutableStateFlow(System.currentTimeMillis())
     private val tasksState = taskRepository.activeTasks.stateIn(
@@ -70,7 +72,10 @@ class PomodoroViewModel(
             while (true) {
                 val now = System.currentTimeMillis()
                 nowMillis.value = now
-                pomodoroRepository.advanceIfNeeded(now)
+                val completed = uiState.value.activeSession
+                if (pomodoroRepository.advanceIfNeeded(now) && uiState.value.preferences.notificationsEnabled) {
+                    completed?.let(notifier::notifyCompleted)
+                }
                 delay(1_000)
             }
         }
@@ -166,8 +171,11 @@ class PomodoroViewModel(
 
     fun completeCurrentSession() {
         viewModelScope.launch {
+            val completed = uiState.value.activeSession
             if (!pomodoroRepository.completeCurrentSession()) {
                 _messages.emit("完成当前阶段失败")
+            } else if (uiState.value.preferences.notificationsEnabled) {
+                completed?.let(notifier::notifyCompleted)
             }
         }
     }
@@ -192,12 +200,13 @@ class PomodoroViewModel(
         fun factory(
             pomodoroRepository: PomodoroRepository,
             settingsStore: AppSettingsStore,
-            taskRepository: TaskRepository
+            taskRepository: TaskRepository,
+            notifier: PomodoroNotifier
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(PomodoroViewModel::class.java))
-                return PomodoroViewModel(pomodoroRepository, settingsStore, taskRepository) as T
+                return PomodoroViewModel(pomodoroRepository, settingsStore, taskRepository, notifier) as T
             }
         }
     }

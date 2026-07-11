@@ -15,12 +15,14 @@ MeaoToDo is a single-device, local-first Android personal assistant. It connects
 - BYOK AI with encrypted key storage, compatible APIs, task drafts, daily briefs, reviews, and plan adjustment.
 - Opt-in daily brief and evening review automation, limited to one run per day.
 - Editable pending actions plus daily request and monthly token limits.
+- Optional system notifications when focus or break phases finish.
+- JSON backup export through the system picker and confirmation-first, ID-based safe restore; API keys are excluded.
 
 ## In Development
 
 - A prompt regression corpus and broader provider compatibility tests.
 - More complete Compose UI and Room migration instrumentation tests.
-- Data export, backup, and additional privacy controls.
+- Finer-grained export selection and future backup schema migrations.
 
 ## AI Safety Boundary
 

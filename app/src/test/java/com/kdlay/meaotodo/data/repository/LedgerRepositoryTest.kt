@@ -66,10 +66,12 @@ class LedgerRepositoryTest {
         }
 
         override suspend fun findById(id: String): LedgerEntryEntity? = entries[id]
+        override suspend fun allForBackup(): List<LedgerEntryEntity> = entries.values.toList()
 
         override suspend fun upsert(entry: LedgerEntryEntity) {
             entries[entry.id] = entry
         }
+        override suspend fun upsertAll(entries: List<LedgerEntryEntity>) = entries.forEach { upsert(it) }
 
         override suspend fun softDelete(id: String, deletedAt: Long) {
             entries[id]?.let { entries[id] = it.copy(deletedAt = deletedAt, updatedAt = deletedAt) }

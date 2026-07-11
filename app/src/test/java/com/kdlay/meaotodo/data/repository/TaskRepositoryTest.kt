@@ -88,10 +88,12 @@ class TaskRepositoryTest {
         override suspend fun findById(id: String): TaskEntity? = tasks[id]
         override suspend fun findActiveByListId(listId: String): List<TaskEntity> =
             activeTasks().filter { it.listId == listId }
+        override suspend fun allForBackup(): List<TaskEntity> = tasks.values.toList()
 
         override suspend fun upsert(task: TaskEntity) {
             tasks[task.id] = task
         }
+        override suspend fun upsertAll(tasks: List<TaskEntity>) = tasks.forEach { upsert(it) }
 
         override suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long) {
             tasks[id]?.let { tasks[id] = it.copy(isDone = isDone, updatedAt = updatedAt) }

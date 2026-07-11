@@ -16,6 +16,12 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,10 +45,10 @@ import com.kdlay.meaotodo.ui.settings.SettingsViewModel
 import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
-private enum class MainTab(val label: String, val icon: String) {
-    Assistant("助手", "✦"),
-    Plan("计划", "✓"),
-    Record("记录", "▤")
+private enum class MainTab(val label: String, val icon: ImageVector) {
+    Assistant("助手", Icons.Filled.Home),
+    Plan("计划", Icons.AutoMirrored.Filled.List),
+    Record("记录", Icons.Filled.DateRange)
 }
 
 @Composable
@@ -153,7 +159,7 @@ private fun MainTabIcon(tab: MainTab, selected: Boolean) {
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(tab.icon, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Icon(imageVector = tab.icon, contentDescription = tab.label)
         }
     }
 }

@@ -17,6 +17,12 @@ interface PomodoroRunDao {
     @Query("SELECT * FROM pomodoro_runs WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): PomodoroRunEntity?
 
+    @Query("SELECT * FROM pomodoro_runs")
+    suspend fun allForBackup(): List<PomodoroRunEntity>
+
     @Upsert
     suspend fun upsert(run: PomodoroRunEntity)
+
+    @Upsert
+    suspend fun upsertAll(runs: List<PomodoroRunEntity>)
 }

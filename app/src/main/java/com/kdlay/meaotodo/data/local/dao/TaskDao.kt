@@ -17,8 +17,14 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE listId = :listId AND deletedAt IS NULL ORDER BY createdAt ASC")
     suspend fun findActiveByListId(listId: String): List<TaskEntity>
 
+    @Query("SELECT * FROM tasks")
+    suspend fun allForBackup(): List<TaskEntity>
+
     @Upsert
     suspend fun upsert(task: TaskEntity)
+
+    @Upsert
+    suspend fun upsertAll(tasks: List<TaskEntity>)
 
     @Query("UPDATE tasks SET isDone = :isDone, updatedAt = :updatedAt WHERE id = :id")
     suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long)

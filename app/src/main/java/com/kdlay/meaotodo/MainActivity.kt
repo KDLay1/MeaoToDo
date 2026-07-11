@@ -25,7 +25,12 @@ class MainActivity : ComponentActivity() {
         )[TodoViewModel::class.java]
         val pomodoroViewModel = ViewModelProvider(
             this,
-            PomodoroViewModel.factory(appContainer.pomodoroRepository, appContainer.settingsStore, appContainer.taskRepository)
+            PomodoroViewModel.factory(
+                appContainer.pomodoroRepository,
+                appContainer.settingsStore,
+                appContainer.taskRepository,
+                appContainer.pomodoroNotifier
+            )
         )[PomodoroViewModel::class.java]
         val ledgerViewModel = ViewModelProvider(
             this,
@@ -40,7 +45,8 @@ class MainActivity : ComponentActivity() {
             SettingsViewModel.factory(
                 appContainer.settingsStore,
                 appContainer.aiSettingsStore,
-                appContainer.assistantAiService
+                appContainer.assistantAiService,
+                appContainer.dataBackupService
             )
         )[SettingsViewModel::class.java]
         val assistantViewModel = ViewModelProvider(

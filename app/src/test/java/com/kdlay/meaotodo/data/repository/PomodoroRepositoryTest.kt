@@ -323,10 +323,12 @@ class PomodoroRepositoryTest {
         override suspend fun findActiveSession(): PomodoroSessionEntity? = activeSessionOrNull()
 
         override suspend fun findById(id: String): PomodoroSessionEntity? = sessions[id]
+        override suspend fun allForBackup(): List<PomodoroSessionEntity> = sessions.values.toList()
 
         override suspend fun upsert(session: PomodoroSessionEntity) {
             sessions[session.id] = session
         }
+        override suspend fun upsertAll(sessions: List<PomodoroSessionEntity>) = sessions.forEach { upsert(it) }
 
         fun allSessions(): List<PomodoroSessionEntity> = sessions.values
             .filter { it.deletedAt == null }
@@ -345,10 +347,12 @@ class PomodoroRepositoryTest {
         override suspend fun findActiveRun(): PomodoroRunEntity? = activeRunOrNull()
 
         override suspend fun findById(id: String): PomodoroRunEntity? = runs[id]
+        override suspend fun allForBackup(): List<PomodoroRunEntity> = runs.values.toList()
 
         override suspend fun upsert(run: PomodoroRunEntity) {
             runs[run.id] = run
         }
+        override suspend fun upsertAll(runs: List<PomodoroRunEntity>) = runs.forEach { upsert(it) }
 
         fun allRuns(): List<PomodoroRunEntity> = runs.values
             .filter { it.deletedAt == null }
@@ -371,10 +375,12 @@ class PomodoroRepositoryTest {
 
         override suspend fun findActiveByListId(listId: String): List<TaskEntity> =
             tasks.values.filter { it.listId == listId && it.deletedAt == null }
+        override suspend fun allForBackup(): List<TaskEntity> = tasks.values.toList()
 
         override suspend fun upsert(task: TaskEntity) {
             tasks[task.id] = task
         }
+        override suspend fun upsertAll(tasks: List<TaskEntity>) = tasks.forEach { upsert(it) }
 
         override suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long) {
             tasks[id]?.let { tasks[id] = it.copy(isDone = isDone, updatedAt = updatedAt) }

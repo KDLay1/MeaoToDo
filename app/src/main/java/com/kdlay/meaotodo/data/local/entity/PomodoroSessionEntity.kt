@@ -2,8 +2,10 @@ package com.kdlay.meaotodo.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 @Entity(tableName = "pomodoro_sessions")
+@Serializable
 data class PomodoroSessionEntity(
     @PrimaryKey val id: String,
     val runId: String? = null,

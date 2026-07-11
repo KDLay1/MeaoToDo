@@ -15,6 +15,8 @@ import com.kdlay.meaotodo.ai.network.OpenAiCompatibleClient
 import com.kdlay.meaotodo.ai.AssistantAiService
 import com.kdlay.meaotodo.domain.assistant.DailyContextRepository
 import com.kdlay.meaotodo.domain.assistant.AssistantActionExecutor
+import com.kdlay.meaotodo.data.backup.DataBackupService
+import com.kdlay.meaotodo.core.notification.PomodoroNotifier
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -30,6 +32,8 @@ class AppContainer(context: Context) {
         MeaoDatabase::class.java,
         "meao_todo.db"
     ).addMigrations(*MeaoDatabase.ALL_MIGRATIONS).build()
+    val dataBackupService = DataBackupService(appContext, database)
+    val pomodoroNotifier = PomodoroNotifier(appContext).also { it.createChannel() }
 
     val taskRepository = TaskRepository(database.taskDao(), database.syncOutboxDao())
     val taskListRepository = TaskListRepository(database.taskListDao(), database.syncOutboxDao())

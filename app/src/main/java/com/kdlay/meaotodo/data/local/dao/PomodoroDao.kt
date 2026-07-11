@@ -23,6 +23,12 @@ interface PomodoroDao {
     @Query("SELECT * FROM pomodoro_sessions WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): PomodoroSessionEntity?
 
+    @Query("SELECT * FROM pomodoro_sessions")
+    suspend fun allForBackup(): List<PomodoroSessionEntity>
+
     @Upsert
     suspend fun upsert(session: PomodoroSessionEntity)
+
+    @Upsert
+    suspend fun upsertAll(sessions: List<PomodoroSessionEntity>)
 }
