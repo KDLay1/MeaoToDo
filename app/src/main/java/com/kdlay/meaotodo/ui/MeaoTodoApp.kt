@@ -2,12 +2,17 @@ package com.kdlay.meaotodo.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -33,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kdlay.meaotodo.ui.assistant.AssistantScreen
 import com.kdlay.meaotodo.ui.assistant.AssistantViewModel
@@ -47,7 +53,7 @@ import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
-    Assistant("助手", Icons.Filled.Home),
+    Today("今天", Icons.Filled.Home),
     Plan("计划", Icons.AutoMirrored.Filled.List),
     Focus("专注", Icons.Filled.PlayArrow),
     Record("记录", Icons.Filled.DateRange)
@@ -63,7 +69,7 @@ fun MeaoTodoApp(
     assistantViewModel: AssistantViewModel,
     onTimerImmersiveModeChange: (Boolean) -> Unit = {}
 ) {
-    var selectedTab by rememberSaveable { mutableStateOf(MainTab.Assistant) }
+    var selectedTab by rememberSaveable { mutableStateOf(MainTab.Today) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var isTimerImmersive by rememberSaveable { mutableStateOf(false) }
     var requestedPomodoroTaskId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -79,30 +85,36 @@ fun MeaoTodoApp(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (!hideChrome && !showSettings) {
-                Column {
+                Column(
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                ) {
                     assistantState.context?.activeFocus?.let { focus ->
-                        Surface(
-                            modifier = Modifier.clickable { selectedTab = MainTab.Focus },
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-                                text = "正在专注：${focus.title} · 点击返回计时器",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                        ActiveFocusDock(
+                            title = focus.title,
+                            onOpen = { selectedTab = MainTab.Focus }
+                        )
                     }
-                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp
+                    ) {
                         MainTab.entries.forEach { tab ->
                             val selected = selectedTab == tab
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = { selectedTab = tab },
                                 icon = { MainTabIcon(tab, selected) },
-                                label = { Text(tab.label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium) },
+                                label = {
+                                    Text(
+                                        tab.label,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
                                     selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     indicatorColor = Color.Transparent
                                 )
                             )
@@ -122,7 +134,7 @@ fun MeaoTodoApp(
                 SettingsShellScreen(viewModel = settingsViewModel, onBack = { showSettings = false })
             } else {
                 when (selectedTab) {
-                    MainTab.Assistant -> AssistantScreen(
+                    MainTab.Today -> AssistantScreen(
                         viewModel = assistantViewModel,
                         onOpenSettings = { showSettings = true },
                         onOpenPlan = { selectedTab = MainTab.Plan },
@@ -150,6 +162,58 @@ fun MeaoTodoApp(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ActiveFocusDock(title: String, onOpen: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clickable(onClick = onOpen),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.76f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(32.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "正在专注",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    title,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                "返回计时器",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
