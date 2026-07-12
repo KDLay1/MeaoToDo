@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - develop/**
+      - codex/**
     paths:
       - 'app/src/**'
       - 'build.gradle.kts'
@@ -47,29 +48,21 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -W -n com.kdlay.meaotodo/.MainActivity
             sleep 5
-            adb exec-out screencap -p > build/ui-preview/01-todo.png
 
-            # Bottom navigation taps for a Pixel 6 emulator in portrait.
-            adb shell input tap 324 2280
+            # Four main destinations on a 1080 px wide Pixel 6 emulator.
+            adb exec-out screencap -p > build/ui-preview/01-assistant.png
+
+            adb shell input tap 405 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/02-pomodoro.png
+            adb exec-out screencap -p > build/ui-preview/02-plan.png
 
-            adb shell input tap 540 2280
+            adb shell input tap 675 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/03-ledger.png
+            adb exec-out screencap -p > build/ui-preview/03-focus-idle.png
 
-            adb shell input tap 756 2280
+            adb shell input tap 945 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/04-board.png
-
-            adb shell input tap 972 2280
-            sleep 2
-            adb exec-out screencap -p > build/ui-preview/05-settings.png
-
-            # Open Todo again and capture the list picker/menu entry if possible.
-            adb shell input tap 108 2280
-            sleep 1
-            adb exec-out screencap -p > build/ui-preview/06-todo-return.png
+            adb exec-out screencap -p > build/ui-preview/04-record.png
 
       - name: Upload UI screenshots
         uses: actions/upload-artifact@v4
