@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -20,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -179,7 +179,10 @@ fun AssistantScreen(
                 NextStepCard(
                     task = recommendedTask,
                     reason = state.suggestions.firstOrNull()?.reason
-                        ?: buildTaskReason(recommendedTask, context.overdueTasks.any { it.id == recommendedTask.id }),
+                        ?: buildTaskReason(
+                            recommendedTask,
+                            context?.overdueTasks.orEmpty().any { it.id == recommendedTask.id }
+                        ),
                     onStartFocus = { onStartFocus(recommendedTask.id) },
                     onOpenPlan = onOpenPlan
                 )
@@ -321,8 +324,11 @@ private fun AssistantCommandBar(
                 IconButton(onClick = onSubmit, enabled = input.isNotBlank() && !busy) {
                     Surface(
                         shape = CircleShape,
-                        color = if (input.isNotBlank() && !busy) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
+                        color = if (input.isNotBlank() && !busy) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        }
                     ) {
                         if (busy) {
                             CircularProgressIndicator(
@@ -374,8 +380,17 @@ private fun ActiveFocusCard(focus: ActiveFocusSnapshot, onOpen: () -> Unit) {
                 )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("正在专注", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(focus.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "正在专注",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    focus.title,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
         }
@@ -397,7 +412,11 @@ private fun PendingActionBanner(count: Int, onOpen: () -> Unit) {
             Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Column(modifier = Modifier.weight(1f)) {
                 Text("有 $count 项操作等待确认", fontWeight = FontWeight.Bold)
-                Text("Meao 不会在后台直接修改数据", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Meao 不会在后台直接修改数据",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             Text("查看", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
@@ -424,8 +443,19 @@ private fun NextStepCard(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 PriorityDot(task.priority)
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(task.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(reason, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        task.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        reason,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -453,7 +483,7 @@ private fun TodayTaskCard(tasks: List<AssistantTaskSnapshot>, onOpenPlan: () -> 
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp)) {
-            tasks.forEachIndexed { index, task ->
+            tasks.forEach { task ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -464,20 +494,23 @@ private fun TodayTaskCard(tasks: List<AssistantTaskSnapshot>, onOpenPlan: () -> 
                 ) {
                     PriorityDot(task.priority)
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(task.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            task.title,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         Text(
                             "${task.remainingPomodoros.coerceAtLeast(1)} 个番茄${task.dueAt?.let { " · ${formatTaskTime(it)}" }.orEmpty()}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (index < tasks.lastIndex) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(start = 19.dp).size(width = 1.dp, height = 1.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    ) {}
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -500,7 +533,10 @@ private fun PriorityDot(priority: Int) {
 
 @Composable
 private fun MetaChip(text: String) {
-    Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
+    ) {
         Text(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             text = text,
@@ -529,12 +565,22 @@ private fun DailyAdviceCard(
             horizontalArrangement = Arrangement.spacedBy(13.dp)
         ) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.tertiaryContainer) {
-                Icon(Icons.Filled.Home, contentDescription = null, modifier = Modifier.padding(11.dp).size(24.dp), tint = MaterialTheme.colorScheme.tertiary)
+                Icon(
+                    Icons.Filled.Home,
+                    contentDescription = null,
+                    modifier = Modifier.padding(11.dp).size(24.dp),
+                    tint = MaterialTheme.colorScheme.tertiary
+                )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("每日建议", fontWeight = FontWeight.Bold)
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                Text(
+                    reason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
             }
             Text(
                 text = if (aiConfigured) "生成" else "配置",
@@ -550,7 +596,11 @@ private fun DailyAdviceCard(
 private fun FeedbackCard(state: AssistantUiState) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = if (state.error != null) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+        color = if (state.error != null) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
