@@ -11,27 +11,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF657AE8),
+    primary = Color(0xFF147E82),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE4E8FF),
-    onPrimaryContainer = Color(0xFF22306A),
-    secondary = Color(0xFFFF7F3F),
+    primaryContainer = Color(0xFFDCEEEE),
+    onPrimaryContainer = Color(0xFF0A5154),
+    secondary = Color(0xFFB57631),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFFFE7DA),
-    onSecondaryContainer = Color(0xFF7A2F0E),
-    tertiary = Color(0xFF2E9B57),
+    secondaryContainer = Color(0xFFF8EBD8),
+    onSecondaryContainer = Color(0xFF704514),
+    tertiary = Color(0xFF4F8750),
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFE4F6E9),
     onTertiaryContainer = Color(0xFF174A2A),
-    background = Color(0xFFFCFAF8),
-    onBackground = Color(0xFF20222D),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF20222D),
-    surfaceVariant = Color(0xFFF3F5FA),
-    onSurfaceVariant = Color(0xFF777B88),
-    outline = Color(0xFFE4E7EF),
-    error = Color(0xFFD5603F),
-    errorContainer = Color(0xFFFFE3DA)
+    background = Color(0xFFFAF9F6),
+    onBackground = Color(0xFF16242B),
+    surface = Color(0xFFFFFEFC),
+    onSurface = Color(0xFF16242B),
+    surfaceVariant = Color(0xFFF3F5F3),
+    onSurfaceVariant = Color(0xFF667075),
+    outline = Color(0xFFE1E3DF),
+    outlineVariant = Color(0xFFEBECE8),
+    error = Color(0xFFC95D48),
+    errorContainer = Color(0xFFFBE5DF)
 )
 
 private val DarkColors = darkColorScheme(
@@ -61,9 +62,9 @@ private val DarkColors = darkColorScheme(
 private val MeaoShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp)
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 @Composable

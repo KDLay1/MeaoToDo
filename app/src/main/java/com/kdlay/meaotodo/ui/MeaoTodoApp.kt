@@ -89,7 +89,7 @@ fun MeaoTodoApp(
                             )
                         }
                     }
-                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                         MainTab.entries.forEach { tab ->
                             val selected = selectedTab == tab
                             NavigationBarItem(
@@ -121,7 +121,16 @@ fun MeaoTodoApp(
                 when (selectedTab) {
                     MainTab.Assistant -> AssistantScreen(
                         viewModel = assistantViewModel,
-                        onOpenSettings = { showSettings = true }
+                        onOpenSettings = { showSettings = true },
+                        onOpenPlan = {
+                            selectedTab = MainTab.Plan
+                            planSection = PlanSection.TASKS
+                        },
+                        onOpenRecord = { selectedTab = MainTab.Record },
+                        onStartFocus = {
+                            selectedTab = MainTab.Plan
+                            planSection = PlanSection.FOCUS
+                        }
                     )
                     MainTab.Plan -> PlanScreen(
                         section = planSection,
@@ -154,12 +163,15 @@ fun MeaoTodoApp(
 @Composable
 private fun MainTabIcon(tab: MainTab, selected: Boolean) {
     Surface(
-        modifier = Modifier.width(56.dp).height(34.dp),
-        shape = RoundedCornerShape(999.dp),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+        modifier = Modifier.width(50.dp).height(32.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = Color.Transparent
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(imageVector = tab.icon, contentDescription = tab.label)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (selected) Surface(modifier = Modifier.width(28.dp).height(3.dp), shape = RoundedCornerShape(99.dp), color = MaterialTheme.colorScheme.primary) {}
+                Icon(imageVector = tab.icon, contentDescription = tab.label, modifier = Modifier.padding(top = if (selected) 5.dp else 8.dp))
+            }
         }
     }
 }

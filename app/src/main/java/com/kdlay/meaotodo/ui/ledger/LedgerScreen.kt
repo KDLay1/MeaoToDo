@@ -53,20 +53,20 @@ import kotlin.math.roundToInt
 
 private val ledgerCategories = listOf("餐饮", "学习", "交通", "咖啡", "生活", "其他")
 private val ledgerCategoryIcons = mapOf(
-    "餐饮" to "🍴",
-    "学习" to "▤",
-    "交通" to "▣",
-    "咖啡" to "☕",
-    "生活" to "⌂",
-    "其他" to "••"
+    "餐饮" to "餐",
+    "学习" to "学",
+    "交通" to "行",
+    "咖啡" to "饮",
+    "生活" to "家",
+    "其他" to "其"
 )
 private val ledgerChartColors = listOf(
-    Color(0xFF8E8BFF),
-    Color(0xFFFFC39A),
-    Color(0xFF6B86FF),
-    Color(0xFF9ADBC5),
-    Color(0xFFFFA977),
-    Color(0xFFD9D5C9)
+    Color(0xFF147E82),
+    Color(0xFFB57631),
+    Color(0xFF527FA3),
+    Color(0xFF65A28B),
+    Color(0xFFC97860),
+    Color(0xFFA6AAA4)
 )
 
 @Composable
@@ -146,13 +146,13 @@ private fun LedgerTopHeader(uiState: LedgerUiState) {
     val balance = incomeCents - monthExpense
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("MeaoToDo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("记录每一笔，也看清生活节奏", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 Text("⌕", fontSize = 30.sp, color = MaterialTheme.colorScheme.onBackground)
                 Text("⋮", fontSize = 28.sp, color = MaterialTheme.colorScheme.onBackground)
             }
         }
-        Text("账本", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text("账本", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("本月支出 ${formatMoney(monthExpense)}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
             Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant)

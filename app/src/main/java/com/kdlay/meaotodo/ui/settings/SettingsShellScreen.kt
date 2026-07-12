@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+private enum class SettingsDestination { HOME, AI, FOCUS, LEDGER_DATA }
+
 @Composable
 internal fun SettingsShellScreen(
     viewModel: SettingsViewModel,
@@ -54,6 +56,8 @@ internal fun SettingsShellScreen(
     val dataTransferStatus by viewModel.dataTransferStatus.collectAsState()
     val pomodoroPreferences by viewModel.pomodoroPreferences.collectAsState()
     val context = LocalContext.current
+    var destinationName by rememberSaveable { mutableStateOf(SettingsDestination.HOME.name) }
+    val destination = SettingsDestination.valueOf(destinationName)
     var pendingImportUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -80,6 +84,18 @@ internal fun SettingsShellScreen(
         )
     }
 
+    if (destination == SettingsDestination.HOME) {
+        SettingsHome(
+            modifier = modifier,
+            aiConfigured = aiSettings.isConfigured,
+            notificationsEnabled = pomodoroPreferences.notificationsEnabled,
+            monthlyBudgetCents = preferences.monthlyBudgetCents,
+            onBack = onBack,
+            onOpen = { destinationName = it.name }
+        )
+        return
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -87,8 +103,13 @@ internal fun SettingsShellScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { SettingsHeader(onBack = onBack) }
-        item {
+        item { SettingsSubHeader(title = when (destination) {
+            SettingsDestination.AI -> "AI 与模型"
+            SettingsDestination.FOCUS -> "专注与通知"
+            SettingsDestination.LEDGER_DATA -> "账本与数据"
+            SettingsDestination.HOME -> "设置"
+        }, onBack = { destinationName = SettingsDestination.HOME.name }) }
+        if (destination == SettingsDestination.AI) item {
             SettingsSection(title = "助手与洞察", icon = "✦") {
                 AiSettingsCard(
                     settings = aiSettings,
@@ -103,7 +124,7 @@ internal fun SettingsShellScreen(
                 Text("洞察模块可在记录页的“洞察”中调整，并会自动保存。")
             }
         }
-        item {
+        if (destination == SettingsDestination.FOCUS) item {
             SettingsSection(title = "番茄与任务", icon = "⏱") {
                 Text("默认时长与轮次请在番茄页直接调整，修改后会自动保存。")
                 MeaoSettingsSwitchRow(
@@ -126,7 +147,7 @@ internal fun SettingsShellScreen(
                 )
             }
         }
-        item {
+        if (destination == SettingsDestination.LEDGER_DATA) item {
             SettingsSection(title = "账本与数据", icon = "▣") {
                 Text("账本分类：餐饮、学习、交通、咖啡、生活、其他。")
                 Text(
@@ -180,6 +201,90 @@ internal fun SettingsShellScreen(
 }
 
 @Composable
+private fun SettingsHome(
+    modifier: Modifier,
+    aiConfigured: Boolean,
+    notificationsEnabled: Boolean,
+    monthlyBudgetCents: Long,
+    onBack: () -> Unit,
+    onOpen: (SettingsDestination) -> Unit
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        item { SettingsHeader(onBack) }
+        item {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = .22f))
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("本地优先", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("任务、专注和账本保存在此设备；AI 操作确认后才会执行。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        item {
+            SettingsMenuGroup {
+                SettingsMenuRow("AI 与模型", if (aiConfigured) "已配置 · 可使用 AI 助手" else "未配置 API 服务") { onOpen(SettingsDestination.AI) }
+                SettingsMenuRow("专注与通知", if (notificationsEnabled) "阶段结束通知已开启" else "阶段结束通知已关闭") { onOpen(SettingsDestination.FOCUS) }
+                SettingsMenuRow("任务与日历", "默认视图与提醒将在后续版本集中管理", enabled = false) {}
+            }
+        }
+        item {
+            SettingsMenuGroup {
+                SettingsMenuRow("账本与数据", if (monthlyBudgetCents > 0) "月预算 ¥${monthlyBudgetCents / 100} · 备份与恢复" else "预算、备份与恢复") { onOpen(SettingsDestination.LEDGER_DATA) }
+                SettingsMenuRow("外观", "跟随系统", enabled = false) {}
+                SettingsMenuRow("关于", "MeaoToDo · 本地个人助手", enabled = false) {}
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsMenuGroup(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(Modifier.padding(vertical = 4.dp), content = content)
+    }
+}
+
+@Composable
+private fun SettingsMenuRow(title: String, subtitle: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(horizontal = 18.dp, vertical = 15.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+            Text(title.take(1), Modifier.padding(horizontal = 12.dp, vertical = 9.dp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(if (enabled) "›" else "即将推出", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SettingsSubHeader(title: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(modifier = Modifier.clickable(onClick = onBack), shape = CircleShape, color = MaterialTheme.colorScheme.surface, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
+            Text("‹", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge)
+        }
+        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 private fun SettingsHeader(onBack: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -204,7 +309,7 @@ private fun SettingsHeader(onBack: () -> Unit) {
         }
         Text("设置", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Text(
-            text = "本地助手、专注、洞察和账本的统一配置入口。",
+            text = "按功能进入对应设置，避免将所有开关堆在同一页。",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -221,7 +326,7 @@ private fun SettingsSection(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.dp
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
