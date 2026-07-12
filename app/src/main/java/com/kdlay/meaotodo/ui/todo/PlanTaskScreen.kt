@@ -49,7 +49,11 @@ fun PlanTaskScreen(
     var selectedListId by rememberSaveable { mutableStateOf(SMART_ALL) }
     var quickAddTitle by rememberSaveable { mutableStateOf("") }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var statusFilterName by rememberSaveable { mutableStateOf(TodoStatusFilter.All.name) }
+    var priorityFilterName by rememberSaveable { mutableStateOf(TodoPriorityFilter.All.name) }
+    var sortModeName by rememberSaveable { mutableStateOf(TodoSortMode.Time.name) }
     var showListPicker by remember { mutableStateOf(false) }
+    var showFilterSort by remember { mutableStateOf(false) }
     var showAddList by remember { mutableStateOf(false) }
     var showAddTask by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -58,12 +62,20 @@ fun PlanTaskScreen(
         viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
     }
 
+    val filterState = remember(statusFilterName, priorityFilterName, sortModeName) {
+        TodoFilterState(
+            status = TodoStatusFilter.valueOf(statusFilterName),
+            priority = TodoPriorityFilter.valueOf(priorityFilterName),
+            sortMode = TodoSortMode.valueOf(sortModeName)
+        )
+    }
     val allGroups = remember(tasks) { buildTodoGroups(tasks) }
     val listOptions = remember(allGroups, customLists) { buildListOptions(allGroups, customLists) }
     val selectedList = listOptions.firstOrNull { it.id == selectedListId } ?: listOptions.first()
-    val searchedTasks = remember(tasks, searchQuery) {
+    val filteredGroups = remember(allGroups, filterState) { applyTodoFilterAndSort(allGroups, filterState) }
+    val searchedTasks = remember(filteredGroups, searchQuery) {
         val query = searchQuery.trim()
-        if (query.isBlank()) tasks else tasks.filter { task ->
+        if (query.isBlank()) filteredGroups.all else filteredGroups.all.filter { task ->
             task.title.contains(query, ignoreCase = true) || task.note.contains(query, ignoreCase = true)
         }
     }
@@ -88,7 +100,7 @@ fun PlanTaskScreen(
         ) {
             MeaoPageHeader(
                 title = selectedList.label,
-                subtitle = buildTaskSummary(tasks, selectedTasks, searchQuery),
+                subtitle = buildTaskSummary(tasks, selectedTasks, searchQuery, filterState),
                 action = {
                     Text(
                         modifier = Modifier.clickable { showListPicker = true }.padding(8.dp),
@@ -125,8 +137,10 @@ fun PlanTaskScreen(
             )
             TaskSearchField(
                 value = searchQuery,
+                filterActive = !filterState.isDefault,
                 onValueChange = { searchQuery = it },
-                onClear = { searchQuery = "" }
+                onClear = { searchQuery = "" },
+                onFilter = { showFilterSort = true }
             )
             ListSwitcher(
                 listOptions = listOptions,
@@ -166,6 +180,19 @@ fun PlanTaskScreen(
                 viewModel.removeTaskList(listId)
             },
             onDismiss = { showListPicker = false }
+        )
+    }
+
+    if (showFilterSort) {
+        TodoFilterSortSheet(
+            currentState = filterState,
+            onApply = { nextState ->
+                statusFilterName = nextState.status.name
+                priorityFilterName = nextState.priority.name
+                sortModeName = nextState.sortMode.name
+                showFilterSort = false
+            },
+            onDismiss = { showFilterSort = false }
         )
     }
 
@@ -215,8 +242,10 @@ fun PlanTaskScreen(
 @Composable
 private fun TaskSearchField(
     value: String,
+    filterActive: Boolean,
     onValueChange: (String) -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onFilter: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     Surface(
@@ -261,6 +290,19 @@ private fun TaskSearchField(
                     fontWeight = FontWeight.Bold
                 )
             }
+            Surface(
+                modifier = Modifier.clickable(onClick = onFilter),
+                shape = RoundedCornerShape(999.dp),
+                color = if (filterActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Text(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    text = if (filterActive) "已筛选" else "筛选",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (filterActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -268,10 +310,12 @@ private fun TaskSearchField(
 private fun buildTaskSummary(
     tasks: List<TaskEntity>,
     selectedTasks: List<TaskEntity>,
-    searchQuery: String
+    searchQuery: String,
+    filterState: TodoFilterState
 ): String {
     val pending = tasks.count { !it.isDone }
     val today = tasks.count { !it.isDone && it.dueAt?.let(::isToday) == true }
-    val suffix = if (searchQuery.isNotBlank()) " · 当前匹配 ${selectedTasks.size} 项" else ""
+    val narrowed = searchQuery.isNotBlank() || !filterState.isDefault
+    val suffix = if (narrowed) " · 当前显示 ${selectedTasks.size} 项" else ""
     return "待办 $pending 项 · 今天 $today 项$suffix"
 }
