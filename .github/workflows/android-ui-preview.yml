@@ -42,56 +42,77 @@ jobs:
       - name: Capture UI screenshots
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -euo pipefail
+            set -Eeuo pipefail
             mkdir -p build/ui-preview
+
+            collect_diagnostics() {
+              adb logcat -d -t 400 > build/ui-preview/logcat.txt 2>&1 || true
+              adb shell dumpsys activity activities > build/ui-preview/activity.txt 2>&1 || true
+              adb shell dumpsys window windows > build/ui-preview/windows.txt 2>&1 || true
+            }
+            trap collect_diagnostics EXIT
+
+            capture() {
+              local name="$1"
+              adb exec-out screencap -p > "build/ui-preview/${name}.png"
+            }
+
+            adb wait-for-device
             adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am force-stop com.kdlay.meaotodo || true
             adb shell am start -W -n com.kdlay.meaotodo/.MainActivity
-            sleep 5
+            sleep 6
 
             # Main navigation coordinates for a 1080 x 2400 Pixel 6 emulator.
-            adb exec-out screencap -p > build/ui-preview/01-today.png
+            capture 01-today
 
             adb shell input tap 405 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/02-plan-tasks.png
+            capture 02-plan-tasks
 
             # Plan secondary navigation: Tasks / Calendar.
             adb shell input tap 810 125
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/03-plan-calendar.png
+            capture 03-plan-calendar
 
             adb shell input tap 675 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/04-focus-idle.png
+            capture 04-focus-idle
 
             adb shell input tap 945 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/05-record-timeline.png
+            capture 05-record-timeline
 
             # Record secondary navigation: Timeline / Ledger / Insights.
             adb shell input tap 540 125
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/06-record-ledger.png
+            capture 06-record-ledger
 
             adb shell input tap 900 125
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/07-record-insights.png
+            capture 07-record-insights
 
-      - name: Upload UI screenshots
+      - name: Upload UI screenshots and diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-preview-${{ github.sha }}
-          path: build/ui-preview/*.png
+          path: build/ui-preview/
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Upload debug APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk-${{ github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
           retention-days: 7
