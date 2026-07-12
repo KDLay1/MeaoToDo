@@ -32,7 +32,7 @@ AI is integrated into the workflow rather than isolated in a separate feature. I
 
 ## In Development
 
-- Full emulator screenshot review and Xiaomi 10s / Xiaomi 15 device validation.
+- Xiaomi 10s / Xiaomi 15 device validation.
 - A prompt regression corpus and broader provider compatibility tests.
 - More complete Compose UI and Room migration instrumentation tests.
 - Finer-grained export selection and future backup schema migrations.
