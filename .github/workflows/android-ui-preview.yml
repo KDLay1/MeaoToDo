@@ -15,6 +15,10 @@ on:
       - 'app/build.gradle.kts'
       - '.github/workflows/android-ui-preview.yml'
 
+concurrency:
+  group: android-ui-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ui-preview:
     runs-on: ubuntu-latest
