@@ -35,7 +35,6 @@ import com.kdlay.meaotodo.ui.components.MeaoCompactStat
 import com.kdlay.meaotodo.ui.components.MeaoPageHeader
 import com.kdlay.meaotodo.ui.components.MeaoSegmentedControl
 import com.kdlay.meaotodo.ui.components.MeaoSectionTitle
-import com.kdlay.meaotodo.ui.ledger.LedgerScreen
 import com.kdlay.meaotodo.ui.ledger.LedgerViewModel
 import com.kdlay.meaotodo.ui.settings.SettingsViewModel
 import java.text.SimpleDateFormat
@@ -64,7 +63,7 @@ fun RecordScreen(
                 viewModel = assistantViewModel,
                 modifier = Modifier.weight(1f)
             )
-            1 -> LedgerScreen(
+            1 -> LedgerV2Screen(
                 viewModel = ledgerViewModel,
                 modifier = Modifier.weight(1f)
             )
