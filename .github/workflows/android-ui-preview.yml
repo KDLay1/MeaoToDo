@@ -22,7 +22,7 @@ concurrency:
 jobs:
   ui-preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,70 +33,107 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --console=plain
 
       - name: Capture UI screenshots
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: google_apis
+          api-level: 33
+          target: default
           arch: x86_64
           profile: pixel_6
+          cores: 2
+          ram-size: 2048M
+          emulator-boot-timeout: 300
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot-save
           script: |
             set -Eeuo pipefail
             mkdir -p build/ui-preview
 
             collect_diagnostics() {
-              adb logcat -d -t 400 > build/ui-preview/logcat.txt 2>&1 || true
-              adb shell dumpsys activity activities > build/ui-preview/activity.txt 2>&1 || true
-              adb shell dumpsys window windows > build/ui-preview/windows.txt 2>&1 || true
+              timeout 20s adb logcat -d -t 600 > build/ui-preview/logcat.txt 2>&1 || true
+              timeout 20s adb shell dumpsys activity activities > build/ui-preview/activity.txt 2>&1 || true
+              timeout 20s adb shell dumpsys window windows > build/ui-preview/windows.txt 2>&1 || true
+              timeout 20s adb shell wm size > build/ui-preview/display.txt 2>&1 || true
+              timeout 20s adb shell getprop > build/ui-preview/getprop.txt 2>&1 || true
+              timeout 20s adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+              timeout 20s adb pull /sdcard/window.xml build/ui-preview/window-final.xml >/dev/null 2>&1 || true
             }
             trap collect_diagnostics EXIT
 
             capture() {
               local name="$1"
-              adb exec-out screencap -p > "build/ui-preview/${name}.png"
+              timeout 20s adb exec-out screencap -p > "build/ui-preview/${name}.png"
             }
 
-            adb wait-for-device
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell am force-stop com.kdlay.meaotodo || true
-            adb shell am start -W -n com.kdlay.meaotodo/.MainActivity
-            sleep 6
+            tap_text() {
+              local label="$1"
+              local region="$2"
+              timeout 20s adb shell uiautomator dump /sdcard/window.xml >/dev/null
+              timeout 20s adb pull /sdcard/window.xml build/ui-preview/window.xml >/dev/null
+              read -r x y < <(python3 - "$label" "$region" <<'PY'
+            import re
+            import sys
+            import xml.etree.ElementTree as ET
 
-            # Main navigation coordinates for a 1080 x 2400 Pixel 6 emulator.
+            label, region = sys.argv[1], sys.argv[2]
+            root = ET.parse('build/ui-preview/window.xml').getroot()
+            matches = []
+            for node in root.iter('node'):
+                if node.attrib.get('text') != label and node.attrib.get('content-desc') != label:
+                    continue
+                match = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
+                if not match:
+                    continue
+                left, top, right, bottom = map(int, match.groups())
+                matches.append(((left + right) // 2, (top + bottom) // 2))
+            if not matches:
+                raise SystemExit(f'Unable to find UI node: {label}')
+            point = max(matches, key=lambda item: item[1]) if region == 'bottom' else min(matches, key=lambda item: item[1])
+            print(*point)
+            PY
+              )
+              timeout 10s adb shell input tap "$x" "$y"
+              sleep 2
+            }
+
+            timeout 30s adb wait-for-device
+            timeout 30s adb install -r app/build/outputs/apk/debug/app-debug.apk
+            timeout 10s adb shell settings put system font_scale 1.0
+            timeout 10s adb shell am force-stop com.kdlay.meaotodo || true
+            timeout 30s adb shell am start -W -n com.kdlay.meaotodo/.MainActivity
+            sleep 5
+
             capture 01-today
 
-            adb shell input tap 405 2280
-            sleep 2
+            tap_text 计划 bottom
             capture 02-plan-tasks
 
-            # Plan secondary navigation: Tasks / Calendar.
-            adb shell input tap 810 125
-            sleep 2
+            tap_text 日历 top
             capture 03-plan-calendar
 
-            adb shell input tap 675 2280
-            sleep 2
+            tap_text 专注 bottom
             capture 04-focus-idle
 
-            adb shell input tap 945 2280
-            sleep 2
+            tap_text 记录 bottom
             capture 05-record-timeline
 
-            # Record secondary navigation: Timeline / Ledger / Insights.
-            adb shell input tap 540 125
-            sleep 2
+            tap_text 账本 top
             capture 06-record-ledger
 
-            adb shell input tap 900 125
-            sleep 2
+            tap_text 洞察 top
             capture 07-record-insights
 
       - name: Upload UI screenshots and diagnostics
