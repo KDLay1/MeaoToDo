@@ -21,8 +21,8 @@ concurrency:
 
 jobs:
   ui-preview:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,15 +49,15 @@ jobs:
       - name: Capture UI screenshots
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 33
+          api-level: 29
           target: default
           arch: x86_64
-          profile: pixel_6
+          profile: pixel_2
           cores: 2
-          ram-size: 2048M
-          emulator-boot-timeout: 300
+          ram-size: 1536M
+          emulator-boot-timeout: 600
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
           script: |
             set -Eeuo pipefail
             mkdir -p build/ui-preview
