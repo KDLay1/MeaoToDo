@@ -1,58 +1,46 @@
 package com.kdlay.meaotodo.ui.plan
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.kdlay.meaotodo.ui.timer.PomodoroTemplateScreen
-import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
-import com.kdlay.meaotodo.ui.todo.TodoScreen
+import com.kdlay.meaotodo.ui.components.MeaoSegmentedControl
+import com.kdlay.meaotodo.ui.todo.PlanCalendarScreen
+import com.kdlay.meaotodo.ui.todo.PlanTaskScreen
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
-
-enum class PlanSection { TASKS, FOCUS }
 
 @Composable
 fun PlanScreen(
-    section: PlanSection,
-    onSectionChange: (PlanSection) -> Unit,
     todoViewModel: TodoViewModel,
-    pomodoroViewModel: PomodoroViewModel,
-    requestedPomodoroTaskId: String?,
-    onRequestedStartTaskHandled: () -> Unit,
     onRequestTaskFocus: (String) -> Unit,
-    onImmersiveModeChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var selectedSection by rememberSaveable { mutableIntStateOf(0) }
+
     Column(modifier = modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
-            FilterChip(
-                selected = section == PlanSection.TASKS,
-                onClick = { onSectionChange(PlanSection.TASKS) },
-                label = { Text("任务与日历") }
-            )
-            FilterChip(
-                modifier = Modifier.padding(start = 8.dp),
-                selected = section == PlanSection.FOCUS,
-                onClick = { onSectionChange(PlanSection.FOCUS) },
-                label = { Text("专注") }
-            )
-        }
-        when (section) {
-            PlanSection.TASKS -> TodoScreen(
+        MeaoSegmentedControl(
+            options = listOf("任务", "日历"),
+            selectedIndex = selectedSection,
+            onSelect = { selectedSection = it },
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+        )
+        if (selectedSection == 0) {
+            PlanTaskScreen(
                 viewModel = todoViewModel,
+                modifier = Modifier.weight(1f),
                 onStartFocus = { task -> onRequestTaskFocus(task.id) }
             )
-            PlanSection.FOCUS -> PomodoroTemplateScreen(
-                viewModel = pomodoroViewModel,
-                requestedStartTaskId = requestedPomodoroTaskId,
-                onRequestedStartTaskHandled = onRequestedStartTaskHandled,
-                onImmersiveModeChange = onImmersiveModeChange
+        } else {
+            PlanCalendarScreen(
+                viewModel = todoViewModel,
+                modifier = Modifier.weight(1f),
+                onStartFocus = { task -> onRequestTaskFocus(task.id) }
             )
         }
     }

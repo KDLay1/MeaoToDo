@@ -4,16 +4,19 @@ import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModelProvider
 import com.kdlay.meaotodo.core.AppContainer
 import com.kdlay.meaotodo.ui.MeaoTodoApp
+import com.kdlay.meaotodo.ui.assistant.AssistantViewModel
 import com.kdlay.meaotodo.ui.board.BoardViewModel
 import com.kdlay.meaotodo.ui.ledger.LedgerViewModel
 import com.kdlay.meaotodo.ui.settings.SettingsViewModel
 import com.kdlay.meaotodo.ui.theme.MeaoTodoTheme
 import com.kdlay.meaotodo.ui.timer.PomodoroViewModel
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
-import com.kdlay.meaotodo.ui.assistant.AssistantViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,15 +71,26 @@ class MainActivity : ComponentActivity() {
                     boardViewModel = boardViewModel,
                     settingsViewModel = settingsViewModel,
                     assistantViewModel = assistantViewModel,
-                    onTimerImmersiveModeChange = { isImmersive ->
-                        requestedOrientation = if (isImmersive) {
-                            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                        } else {
-                            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                        }
-                    }
+                    onTimerImmersiveModeChange = ::setTimerImmersiveMode
                 )
             }
+        }
+    }
+
+    private fun setTimerImmersiveMode(isImmersive: Boolean) {
+        requestedOrientation = if (isImmersive) {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+
+        WindowCompat.setDecorFitsSystemWindows(window, !isImmersive)
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (isImmersive) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 }

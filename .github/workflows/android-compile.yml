@@ -12,6 +12,10 @@ on:
       - develop/**
       - codex/**
 
+concurrency:
+  group: android-compile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   compile:
     runs-on: ubuntu-latest
@@ -24,9 +28,21 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
       - name: Test, assemble, and lint
-        run: ./gradlew testDebugUnitTest assembleDebug lintDebug --stacktrace
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew testDebugUnitTest assembleDebug lintDebug --stacktrace --console=plain 2>&1 | tee android-ci.log
+
+      - name: Upload Android CI log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-ci-log-${{ github.sha }}
+          path: android-ci.log
+          retention-days: 7

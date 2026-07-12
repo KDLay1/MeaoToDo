@@ -3,9 +3,10 @@ package com.kdlay.meaotodo.ui.todo
 import com.kdlay.meaotodo.data.local.entity.DEFAULT_TASK_LIST_ID
 import com.kdlay.meaotodo.data.local.entity.TaskEntity
 import com.kdlay.meaotodo.data.local.entity.TaskListEntity
-import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 internal const val SMART_ALL = "smart_all"
 internal const val SMART_TODAY = "smart_today"
@@ -109,8 +110,12 @@ internal fun tasksForDay(tasks: List<TaskEntity>, day: Long): List<TaskEntity> =
     tasks.filter { task -> task.dueAt?.let { startOfDay(it) == startOfDay(day) } == true }
         .sortedWith(taskTimeComparator())
 
-internal fun formatDate(timestamp: Long): String =
-    DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestamp))
+internal fun formatDate(timestamp: Long): String {
+    val dateYear = Calendar.getInstance().apply { timeInMillis = timestamp }.get(Calendar.YEAR)
+    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+    val pattern = if (dateYear == currentYear) "M月d日" else "yyyy年M月d日"
+    return SimpleDateFormat(pattern, Locale.CHINESE).format(Date(timestamp))
+}
 
 internal fun formatTime(timestamp: Long): String {
     val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
