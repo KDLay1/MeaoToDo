@@ -49,20 +49,34 @@ jobs:
             adb shell am start -W -n com.kdlay.meaotodo/.MainActivity
             sleep 5
 
-            # Four main destinations on a 1080 px wide Pixel 6 emulator.
-            adb exec-out screencap -p > build/ui-preview/01-assistant.png
+            # Main navigation coordinates for a 1080 x 2400 Pixel 6 emulator.
+            adb exec-out screencap -p > build/ui-preview/01-today.png
 
             adb shell input tap 405 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/02-plan.png
+            adb exec-out screencap -p > build/ui-preview/02-plan-tasks.png
+
+            # Plan secondary navigation: Tasks / Calendar.
+            adb shell input tap 810 125
+            sleep 2
+            adb exec-out screencap -p > build/ui-preview/03-plan-calendar.png
 
             adb shell input tap 675 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/03-focus-idle.png
+            adb exec-out screencap -p > build/ui-preview/04-focus-idle.png
 
             adb shell input tap 945 2280
             sleep 2
-            adb exec-out screencap -p > build/ui-preview/04-record.png
+            adb exec-out screencap -p > build/ui-preview/05-record-timeline.png
+
+            # Record secondary navigation: Timeline / Ledger / Insights.
+            adb shell input tap 540 125
+            sleep 2
+            adb exec-out screencap -p > build/ui-preview/06-record-ledger.png
+
+            adb shell input tap 900 125
+            sleep 2
+            adb exec-out screencap -p > build/ui-preview/07-record-insights.png
 
       - name: Upload UI screenshots
         uses: actions/upload-artifact@v4
