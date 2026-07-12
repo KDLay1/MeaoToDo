@@ -70,6 +70,11 @@ fun MeaoTodoApp(
     val assistantState by assistantViewModel.uiState.collectAsState()
     val hideChrome = isTimerImmersive && selectedTab == MainTab.Focus
 
+    fun openFocus(taskId: String?) {
+        requestedPomodoroTaskId = taskId
+        selectedTab = MainTab.Focus
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
@@ -122,14 +127,11 @@ fun MeaoTodoApp(
                         onOpenSettings = { showSettings = true },
                         onOpenPlan = { selectedTab = MainTab.Plan },
                         onOpenRecord = { selectedTab = MainTab.Record },
-                        onStartFocus = { selectedTab = MainTab.Focus }
+                        onStartFocus = ::openFocus
                     )
                     MainTab.Plan -> PlanScreen(
                         todoViewModel = todoViewModel,
-                        onRequestTaskFocus = { taskId ->
-                            requestedPomodoroTaskId = taskId
-                            selectedTab = MainTab.Focus
-                        }
+                        onRequestTaskFocus = ::openFocus
                     )
                     MainTab.Focus -> FocusScreen(
                         viewModel = pomodoroViewModel,
