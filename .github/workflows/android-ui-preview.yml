@@ -33,15 +33,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Expose Android SDK tools
+        run: |
+          echo "${ANDROID_HOME}/platform-tools" >> "${GITHUB_PATH}"
+          echo "${ANDROID_HOME}/emulator" >> "${GITHUB_PATH}"
+          echo "${ANDROID_HOME}/cmdline-tools/latest/bin" >> "${GITHUB_PATH}"
+
       - name: Prepare diagnostics directory
         run: |
           mkdir -p build/ui-preview
           date -u > build/ui-preview/workflow-started.txt
           echo "ANDROID_HOME=${ANDROID_HOME}" >> build/ui-preview/workflow-started.txt
-          command -v sdkmanager >> build/ui-preview/workflow-started.txt 2>&1 || true
-          command -v avdmanager >> build/ui-preview/workflow-started.txt 2>&1 || true
-          command -v emulator >> build/ui-preview/workflow-started.txt 2>&1 || true
-          command -v adb >> build/ui-preview/workflow-started.txt 2>&1 || true
+          command -v sdkmanager >> build/ui-preview/workflow-started.txt 2>&1
+          command -v avdmanager >> build/ui-preview/workflow-started.txt 2>&1
+          command -v emulator >> build/ui-preview/workflow-started.txt 2>&1
+          command -v adb >> build/ui-preview/workflow-started.txt 2>&1
 
       - name: Enable KVM
         run: |
