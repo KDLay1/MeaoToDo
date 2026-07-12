@@ -152,6 +152,7 @@ private fun ProductivityPulseCard(state: BoardUiState) {
 
 @Composable
 private fun WeeklyFocusCard(state: BoardUiState) {
+    val weeklyTotal = state.weeklyFocusCounts.sum()
     val maxValue = state.weeklyFocusCounts.maxOrNull()?.coerceAtLeast(1) ?: 1
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -166,22 +167,45 @@ private fun WeeklyFocusCard(state: BoardUiState) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("完成番茄", fontWeight = FontWeight.Bold)
                 Text(
-                    "本周 ${state.weeklyFocusCounts.sum()} 个",
+                    "本周 $weeklyTotal 个",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().height(132.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                state.weeklyFocusCounts.forEachIndexed { index, value ->
-                    WeekBar(
-                        value = value,
-                        maxValue = maxValue,
-                        label = listOf("一", "二", "三", "四", "五", "六", "日")[index]
-                    )
+            if (weeklyTotal == 0) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(104.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("本周还没有专注记录", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "完成第一轮后，这里会显示每天的投入。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(132.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    state.weeklyFocusCounts.forEachIndexed { index, value ->
+                        WeekBar(
+                            value = value,
+                            maxValue = maxValue,
+                            label = listOf("一", "二", "三", "四", "五", "六", "日")[index]
+                        )
+                    }
                 }
             }
         }
