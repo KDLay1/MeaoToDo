@@ -12,6 +12,10 @@ on:
       - develop/**
       - codex/**
 
+concurrency:
+  group: android-compile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   compile:
     runs-on: ubuntu-latest
