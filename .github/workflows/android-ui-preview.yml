@@ -46,8 +46,8 @@ jobs:
           echo "ANDROID_HOME=${ANDROID_HOME}" >> build/ui-preview/workflow-started.txt
           command -v sdkmanager >> build/ui-preview/workflow-started.txt 2>&1
           command -v avdmanager >> build/ui-preview/workflow-started.txt 2>&1
-          command -v emulator >> build/ui-preview/workflow-started.txt 2>&1
-          command -v adb >> build/ui-preview/workflow-started.txt 2>&1
+          command -v emulator >> build/ui-preview/workflow-started.txt 2>&1 || echo "emulator will be installed" >> build/ui-preview/workflow-started.txt
+          command -v adb >> build/ui-preview/workflow-started.txt 2>&1 || echo "adb will be installed" >> build/ui-preview/workflow-started.txt
 
       - name: Enable KVM
         run: |
