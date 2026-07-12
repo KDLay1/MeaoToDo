@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kdlay.meaotodo.ui.components.MeaoSegmentedControl
 import com.kdlay.meaotodo.ui.todo.PlanCalendarScreen
-import com.kdlay.meaotodo.ui.todo.TodoScreen
+import com.kdlay.meaotodo.ui.todo.PlanTaskScreen
 import com.kdlay.meaotodo.ui.todo.TodoViewModel
 
 @Composable
@@ -31,7 +31,7 @@ fun PlanScreen(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
         )
         if (selectedSection == 0) {
-            TodoScreen(
+            PlanTaskScreen(
                 viewModel = todoViewModel,
                 modifier = Modifier.weight(1f),
                 onStartFocus = { task -> onRequestTaskFocus(task.id) }
