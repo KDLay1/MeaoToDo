@@ -28,11 +28,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kdlay.meaotodo.ui.board.BoardUiState
 import com.kdlay.meaotodo.ui.board.BoardViewModel
-import com.kdlay.meaotodo.ui.ledger.formatMoney
-import com.kdlay.meaotodo.ui.settings.SettingsViewModel
+import com.kdlay.meaotodo.ui.board.buildBudgetPace
 import com.kdlay.meaotodo.ui.components.MeaoCompactStat
 import com.kdlay.meaotodo.ui.components.MeaoPageHeader
 import com.kdlay.meaotodo.ui.components.MeaoSectionTitle
+import com.kdlay.meaotodo.ui.ledger.formatMoney
+import com.kdlay.meaotodo.ui.settings.SettingsViewModel
 import kotlin.math.roundToInt
 
 @Composable
@@ -206,14 +207,11 @@ private fun WeekBar(value: Int, maxValue: Int, label: String) {
 
 @Composable
 private fun SpendingPaceCard(state: BoardUiState, monthlyBudgetCents: Long) {
-    val budget = monthlyBudgetCents.coerceAtLeast(0)
-    val progress = if (budget > 0) state.monthExpenseCents.toFloat() / budget.toFloat() else 0f
-    val status = when {
-        budget <= 0 -> "尚未设置月预算"
-        progress > 1f -> "已经超出预算"
-        progress > 0.8f -> "接近预算上限"
-        else -> "当前节奏正常"
-    }
+    val pace = buildBudgetPace(
+        monthSpentCents = state.monthExpenseCents,
+        budgetCents = monthlyBudgetCents,
+        now = state.nowMillis
+    )
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -227,29 +225,40 @@ private fun SpendingPaceCard(state: BoardUiState, monthlyBudgetCents: Long) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("本月支出", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(formatMoney(state.monthExpenseCents), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(formatMoney(pace.spentCents), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("本周", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(formatMoney(state.weekExpenseCents), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
             }
-            if (budget > 0) {
+            if (pace.budgetCents > 0) {
                 LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
+                    progress = { pace.progress.coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = if (progress > 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    color = if (pace.spentCents > pace.budgetCents) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
                 Text(
-                    "预算 ${formatMoney(budget)} · 已使用 ${(progress * 100).roundToInt()}%",
+                    "预算 ${formatMoney(pace.budgetCents)} · 已使用 ${(pace.progress * 100).roundToInt()}%",
                     style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "截至今天合理进度约 ${formatMoney(pace.expectedByTodayCents)}，按当前节奏预计月末 ${formatMoney(pace.projectedMonthCents)}。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Text(
+                    "按当前节奏预计月末 ${formatMoney(pace.projectedMonthCents)}，可在设置中开启月预算。",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
-                status,
-                color = if (progress > 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                pace.status,
+                color = if (pace.status.contains("超") || pace.status.contains("快")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold
             )
         }
